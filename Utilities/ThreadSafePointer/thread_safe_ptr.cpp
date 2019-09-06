@@ -4,16 +4,14 @@
 #include <map>
 #include <boost/operators.hpp>
 
-using namespace std;
-
 template <
     typename T,
     typename mutex_t = std::recursive_mutex,
-    typename lock_t = std::unique_lock<mutex_t>>
+    typename lock_t  = std::unique_lock<mutex_t>>
 class thread_safe_ptr
 {
-    unique_ptr<T> ptr;
-    unique_ptr<mutex_t> mtx;
+    std::unique_ptr<T> ptr;
+    std::unique_ptr<mutex_t> mtx;
 
     // the surrogate
     template <
@@ -30,7 +28,7 @@ class thread_safe_ptr
         : ptr(p), lock(mtx) {}
 
         proxy(proxy&& rhs)
-        : ptr(move(rhs.ptr)), lock(move(rhs.lock)) {}
+        : ptr(std::move(rhs.ptr)), lock(std::move(rhs.lock)) {}
 
         proxy& operator=(proxy const& rhs)
         {
@@ -128,7 +126,7 @@ public:
     template <
         typename... Args>
     thread_safe(Args... args)
-    : ptr(make_unique<T>(forward<Args>(args)...)), mtx(make_unique<mutex_t>()) {}
+    : ptr(std::make_unique<T>(std::forward<Args>(args)...)), mtx(std::make_unique<mutex_t>()) {}
 
     void lock() {mtx->lock();}
     void unlock() {mtx->unlock();}
