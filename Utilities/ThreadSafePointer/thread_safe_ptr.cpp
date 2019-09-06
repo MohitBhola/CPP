@@ -2,6 +2,7 @@
 #include <memory>
 #include <mutex>
 #include <map>
+#include <thread>
 #include <boost/operators.hpp>
 
 template <
@@ -16,7 +17,7 @@ class thread_safe_ptr
     // the surrogate
     template <
         typename requested_lock_t>
-    class proxy 
+    class proxy
         : private boost::operators<proxy<requested_lock_t>>
     {
         T * const ptr{nullptr};
@@ -56,7 +57,7 @@ class thread_safe_ptr
         {
             return *lhs.ptr == *rhs.ptr;
         }
-        
+
         ///////////////////////////////////
         // for boost::integer_arithmetic<T>
         ///////////////////////////////////
@@ -125,7 +126,7 @@ public:
 
     template <
         typename... Args>
-    thread_safe(Args... args)
+    thread_safe_ptr(Args... args)
     : ptr(std::make_unique<T>(std::forward<Args>(args)...)), mtx(std::make_unique<mutex_t>()) {}
 
     void lock() {mtx->lock();}
@@ -139,47 +140,49 @@ public:
     auto const operator*() const {return proxy<lock_t>(ptr.get(), *mtx);}
 };
 
-class Foo
+struct Foo
 {
-    int i{42}; 
-    float f{42.0}; 
-    char c{'a'}; 
+    Foo() = default;
 
-public:
-
-    explicit Foo(int i_, float f_, char c_) : i(i_), f(f_), c(c_) {}
     void doSomething1() {}
     void doSomething2() {}
     void doSomething3() {}
+
+    int i{42};
+    float f{42.0};
+    char c{'a'};
 };
 
 
-// works with fundamental types 
-thread_safe_ptr<int> safeInt(42); 
- 
-// works with user defined types 
-thread_safe_ptr<Foo> safeFoo{}; 
- 
-// works with library types 
-thread_safe<map<int, int>> safeMap{}; 
-thread_safe<map<int, int>> safeMap_copy{}; 
- 
-thread_safe<string> safeStr1{"abc"}; 
-thread_safe<string> safeStr2{"xyz"}; 
+// works with fundamental types
+thread_safe_ptr<int> safeInt(42);
+
+// works with user defined types
+thread_safe_ptr<Foo> safeFoo{};
+
+// works with library types
+thread_safe_ptr<std::map<int, int>> safeMap{};
+thread_safe_ptr<std::map<int, int>> safeMap_copy{};
+
+thread_safe_ptr<std::string> safeStr1{"abc"};
+thread_safe_ptr<std::string> safeStr2{"xyz"};
 
 void f1()
 {
     // thread_safe_ptr<int> supports increment-assignment operator
     // since the underlying int supports the same
-    *safeInt += 42; 
+    *safeInt += 42;
 
     // thread safe singular operation
     safeFoo->doSomething1();
 
     // thread safe transactional semantics
     // thread_safe_ptr implements the BasicLockable interface
-    // lock is released at the end of the comma operator
-    std::lock(safeFoo), safeFoo->doSomething2(), safeFoo->doSomething3();
+
+    safeFoo.lock();
+    safeFoo->doSomething2();
+    safeFoo->doSomething3();
+    safeFoo.unlock();
 }
 
 void f2()
@@ -194,7 +197,10 @@ void f2()
     // thread safe transactional semantics
     // thread_safe_ptr implements the BasicLockable interface
     // lock is released at the end of the comma operator
-    std::lock(safeFoo), safeFoo->doSomething2(), safeFoo->doSomething3();
+    safeFoo.lock();
+    safeFoo->doSomething2();
+    safeFoo->doSomething3();
+    safeFoo.unlock();
 }
 
 // either f3 or f4 populates safeMap_copy
@@ -210,33 +216,41 @@ void f2()
 // but different threads may try to acquire those locks
 // in different orders which is a classic recipe for a deadlock
 // for example, note that f3() and f4() below acquire locks in different orders
-// we need to acquire these locks atomically 
-// thankfully, std::lock() allows just that! 
+// we need to acquire these locks atomically
+// thankfully, std::lock() allows just that!
 
 void f3()
 {
     {
-        std::lock lk(safeMap, safeMap_copy); // transactional semantics
-        if (*safeMap_copy.empty())
+        std::lock(safeMap, safeMap_copy); // transactional semantics
+
+        if (safeMap_copy->empty())
         {
             *safeMap_copy = *safeMap;
         }
-    } 
+
+        safeMap.unlock();
+        safeMap_copy.unlock();
+    }
 }
 
 void f4()
 {
     {
-        std::lock lk(safeMap_copy, safeMap); // transactional semantics; note different order of lock acquisition than in f3()
-        if (*safeMap_copy.empty())
+        std::lock(safeMap_copy, safeMap); // transactional semantics; note different order of lock acquisition than in f3()
+
+        if (safeMap_copy->empty())
         {
             *safeMap_copy = *safeMap;
         }
-    } 
+
+        safeMap.unlock();
+        safeMap_copy.unlock();
+    }
 }
- 
-int main() 
-{ 
+
+int main()
+{
     std::thread t1(f1);
     std::thread t2(f2);
 
@@ -244,20 +258,20 @@ int main()
     t2.join();
 
     // thread_safe_ptr<int> allows access to the underlying shared resource (int) via dereferencing
-    // this is guaranteed to print 132 since increments happen
+    // this is guaranteed to print 126 since increments happen
     // atomically in threads t1 and t2
-    cout << *safeInt << '\n'; 
+    std::cout << *safeInt << '\n';
 
     // thread_safe_ptr<Foo> allows for transparent indirection for member access
-    cout << safeFoo->c << '\n'; 
+    std::cout << safeFoo->c << '\n';
 
-    // thread_safe_ptr<std::map> allows for subscripting as the underlying 
+    // thread_safe_ptr<std::map> allows for subscripting as the underlying
     // shared resource (a std::map) supports the same
     (*safeMap)[1] = 1;
-    (*safeMap)[2] = 2; 
+    (*safeMap)[2] = 2;
 
-    cout << (*safeMap)[1] << '\n';
-    cout << (*safeMap)[2] << '\n'; 
+    std::cout << (*safeMap)[1] << '\n';
+    std::cout << (*safeMap)[2] << '\n';
 
     std::thread t3(f3);
     std::thread t4(f4);
@@ -265,19 +279,19 @@ int main()
     t3.join();
     t4.join();
 
-    // safeMap_copy got populated in a thread safe manner 
+    // safeMap_copy got populated in a thread safe manner
     // in either thread t3 or thread t4
-    cout << (*safeMap_copy)[1] << '\n'; 
-    cout << (*safeMap_copy)[2] << '\n'; 
+    std::cout << (*safeMap_copy)[1] << '\n';
+    std::cout << (*safeMap_copy)[2] << '\n';
 
     // thread_safe_ptr<std::string> allows for comparisons
     // as the underlying shared resource (std::string) support the same
     // std::lock used here for transactional semantics
     {
-        std::lock lk(safeStr1, safeStr2); 
-        cout << boolalpha << (*safeStr1 > *safeStr2) << '\n';
-        cout << boolalpha << (*safeStr1 != *safeStr2) << '\n'; 
-    } 
+        std::lock(safeStr1, safeStr2);
+        std::cout << std::boolalpha << (*safeStr1 > *safeStr2) << '\n';
+        std::cout << std::boolalpha << (*safeStr1 != *safeStr2) << '\n';
+    }
 
-    return 0; 
-} 
+    return 0;
+}
