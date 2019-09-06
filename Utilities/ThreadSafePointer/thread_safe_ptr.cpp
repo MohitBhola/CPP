@@ -7,7 +7,7 @@
 template <
 	typename T,
 	typename mutex_t = std::recursive_mutex,
-	typename lock_t  = std::unique_lock<mutex_t>>
+	typename lock_t = std::unique_lock<mutex_t>>
 class thread_safe_ptr
 {
 	std::unique_ptr<T> ptr;
