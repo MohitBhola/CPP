@@ -180,11 +180,8 @@ void f1()
 
     // thread safe transactional semantics
     // thread_safe_ptr implements the BasicLockable interface
-    {  
-        std::lock lk(safeFoo);
-        safeFoo->doSomething2();
-        safeFoo->doSomething3();
-    }
+    // lock is released at the end of the comma operator
+    std::lock(safeFoo), safeFoo->doSomething2(), safeFoo->doSomething3();
 }
 
 void f2()
@@ -198,11 +195,8 @@ void f2()
 
     // thread safe transactional semantics
     // thread_safe_ptr implements the BasicLockable interface
-    {
-        std::lock lk(safeFoo);
-        safeFoo->doSomething2();
-        safeFoo->doSomething3();
-    }
+    // lock is released at the end of the comma operator
+    std::lock(safeFoo), safeFoo->doSomething2(), safeFoo->doSomething3();
 }
 
 // either f3 or f4 populates safeMap_copy
@@ -224,7 +218,7 @@ void f2()
 void f3()
 {
     {
-        std::lock(safeMap, safeMap_copy); // transactional semantics
+        std::lock lk(safeMap, safeMap_copy); // transactional semantics
         if (*safeMap_copy.empty())
         {
             *safeMap_copy = *safeMap;
@@ -235,7 +229,7 @@ void f3()
 void f4()
 {
     {
-        std::lock(safeMap_copy, safeMap); // transactional semantics; note different order of lock acquisition than in f3()
+        std::lock lk(safeMap_copy, safeMap); // transactional semantics; note different order of lock acquisition than in f3()
         if (*safeMap_copy.empty())
         {
             *safeMap_copy = *safeMap;
