@@ -11,33 +11,33 @@
 
 struct Base
 {
-	Base() = default;
-	Base(Base const& other) = default;
+    Base() = default;
+    Base(Base const& other) = default;
 
-	// every time, T is deduced as Derived
-	// this recurses back to the Derived class copy ctor, and gets called again, ad nauseam !!!
-	// thus resulting in StackOverflow
-	// Note that this universal ctor provides an exact match for the Derived class object, and thus gets precedence
-  // over other ctors (implicit or explicit) that feature a parameter related to the the Base class
+    // every time, T is deduced as Derived
+    // this recurses back to the Derived class copy ctor, and gets called again, ad nauseam !!!
+    // thus resulting in StackOverflow
+    // Note that this universal ctor provides an exact match for the Derived class object, and thus gets precedence
+    // over other ctors (implicit or explicit) that feature a parameter related to the the Base class
 
-	template<
-		typename T>
-	Base(T x)
-	{}
+    template<
+        typename T>
+    Base(T x)
+    {}
 };
 
 struct Derived : Base
 {
-	Derived() = default;
+    Derived() = default;
 
-	Derived(Derived const& d) : Base(d)
-	{}
+    Derived(Derived const& d) : Base(d)
+    {}
 };
 
 int main()
 {
-	Derived d1;
-	Derived d2 = d1;
+    Derived d1;
+    Derived d2 = d1;
 
-	return 0;
+    return 0;
 }
