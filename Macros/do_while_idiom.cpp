@@ -28,6 +28,6 @@ int main(int argc, char **argv)
     MXT_SORT3(a,b,c);
     
     cout << a << b << c << '\n';
-    
-	  return 0;
+
+    return 0;
 }
