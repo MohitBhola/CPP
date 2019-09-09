@@ -12,8 +12,8 @@ int main(int argc, char **argv)
 {
     IDValue aIDValue{42, 43.1};
     
-    cout << aIDValue.*pID << '\n';
-    cout << aIDValue.*pValue << '\n';
+    cout << aIDValue.*pID << '\n'; // note usage syntax
+    cout << aIDValue.*pValue << '\n'; // note usage syntax
     
 	return 0;
 }
