@@ -37,6 +37,8 @@ struct Derived : Base
 int main()
 {
     Derived d1;
+    
+    // compiles fine by causes StackOverflow (infinite recursion) at runtime
     Derived d2 = d1;
 
     return 0;
