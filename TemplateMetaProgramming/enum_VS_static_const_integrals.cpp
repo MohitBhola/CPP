@@ -33,5 +33,5 @@ int main(int argc, char **argv)
     // fine
     cout << Bar<int>::value << '\t' << &Bar<int>::value << '\n';
     
-	  return 0;
+    return 0;
 }
