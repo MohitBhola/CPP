@@ -15,11 +15,11 @@ struct Base
     Base(Base const& other) = default;
 
     // every time, T is deduced as Derived
-    // this recurses back to the Derived class copy ctor, and gets called again, ad nauseam !!!
+    // this recurses back to the Derived class copy ctor, and gets called again, ad nauseam,
     // thus resulting in StackOverflow
-    // Note that this universal ctor provides an exact match for the Derived class object, and thus gets precedence
-    // over other ctors (implicit or explicit) that feature a parameter related to the the Base class
-
+    // Note that this universal ctor provides an exact match for the Derived class object, 
+    // and thus gets precedence over other ctors (implicit or explicit) 
+    // that feature a parameter related to the the Base class (for example, see defaulted copy ctor above)
     template<
         typename T>
     Base(T x)
