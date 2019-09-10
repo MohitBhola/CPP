@@ -64,10 +64,10 @@ int main(int argc, char **argv)
     ns_bar::Bar bar1{42, 42};
     ns_bar::Bar bar2{43, 43};
     
-	  ns_foo::Foo<ns_bar::Bar> iFoo1{bar1};
+    ns_foo::Foo<ns_bar::Bar> iFoo1{bar1};
     ns_foo::Foo<ns_bar::Bar> iFoo2{bar2};
     
     iFoo1.swap(iFoo2);
     
-	  return 0;
+    return 0;
 }
