@@ -8,8 +8,8 @@ void Foo(literal_zero_t zero)
 
 int main()
 {
-    literal_zero_t zero{};
-    Foo(zero);
+    Foo(0);
+    //Foo(42);
     
     return 0;
 }
