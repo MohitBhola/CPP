@@ -33,6 +33,7 @@ void swap(Bar& a, Bar& b)
 }
 
 // [SUBTLE]
+
 // It isn't strictly necessary (but see more comments in the code that follows)
 // to provide a full specialization of std::swap for the types under consideration
 // *if* we have already provided an overloaded swap in the namespace in which those
@@ -81,6 +82,7 @@ public:
     void swap(Foo<T>& other)
     {
         // [SUBTLE]
+        
         // We have two options here.
 
         // First, we explicitly invoke std::swap, and hope that a full specialization is in place that
