@@ -35,21 +35,23 @@ void swap(Bar& a, Bar& b)
 // [SUBTLE]
 // It isn't strictly necessary (but see more comments in the code that follows)
 // to provide a full specialization of std::swap for the types under consideration
-// ***if*** we have already provided an overloaded swap in the namespace in which those
+// *if* we have already provided an overloaded swap in the namespace in which those
 // types have been defined, thanks to ADL (Koenig Lookup).
 
 // BUT, client code may still explicitly qualify calls to swap with std:: prefix (by mistake or ignorance)
 // and would thus hit the general swap in the std namespace, thus bypassing the overloaded swap in the
 // namespace in which those types have been defined. If such types support move operations, the general swap in
 // the std namespace would probably still do something optimal than copying, but the fact remains that
-// the overloaded swap in the namespace in which those types have been defined was the right candidate
-// and the client code missed out on that.
+// the overloaded swap in the namespace in which those types have been defined was the right candidate to invoke,
+// but the client code missed out on that.
 
 // To provide a safety net for such a fiasco, we also provide a full specialization of std::swap for the
-// types under consideration, which re-route to member swap.
+// types under consideration, which re-routes to member swap!
 
-// To summarize, we shall provide both an overloaded swap in the namespace in which those types have been defined,
-// AND fully specialize std::swap for those types. Both these implementations shall re-route to the member swap.
+// To summarize, thou shall: 
+// 1. Provide an overloaded swap in the namespace in which those types have been defined (that routes to the member swap).
+// AND 
+// 2. Fully specialize std::swap for those types (that routes to the member swap).
 
 namespace std
 {
