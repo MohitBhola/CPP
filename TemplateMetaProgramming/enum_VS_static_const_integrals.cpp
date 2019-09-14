@@ -28,10 +28,10 @@ int const Bar<T>::value;
 int main(int argc, char **argv)
 {
     // ERROR
-    //cout << Foo<int>::value << '\t' << &Foo<int>::value << '\n';
+    //cout << &Foo<int>::value << '\n';
     
     // fine
-    cout << Bar<int>::value << '\t' << &Bar<int>::value << '\n';
+    cout << &Bar<int>::value << '\n';
     
     return 0;
 }
