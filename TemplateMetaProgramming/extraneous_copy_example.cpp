@@ -2,6 +2,7 @@
 #include <string>
 using namespace std;
 
+// a simplified pair
 template<
     typename T1,
     typename T2>
@@ -39,21 +40,17 @@ struct Foo
 void Bar(Foo<int, string> const& foo)
 {}
 
-/*
-template<
-    typename X,
-    typename Y>
-void Bar(Foo<X, Y> const& foo1, Foo<X, Y> const& foo2)
-{}
- */ 
-
 int main(int argc, char **argv)
-{
+{   
     Foo<int, string> foo1{1, "abc"};
-    Foo<const int, string> foo2{2, "xyz"};
-    
+    // foo1 (Foo<int, string>) is an exact match for the parameter type of: Bar(Foo<int, string> const&)
     Bar(foo1);
+    
+    Foo<int const, string> foo2{2, "xyz"}
+    // foo2 (Foo<int const, string>) is a mismatch for the parameter type of: Bar(Foo<int, string> const&)
+    // a temporary (of type Foo<int, string>) is thus created from foo2 (which is of type Foo<int const, string>)
+    // thus the extraneous copy
     Bar(foo2);
-	
-	return 0;
+    
+    return 0;
 }
