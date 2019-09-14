@@ -121,7 +121,6 @@ int main(int argc, char **argv)
     iFoo1.swap(iFoo2);
 
     // this call will resolve to the overloaded swap in the namespace ns_bar
-    using namespace std;
     using namespace ns_bar;
     swap(bar1, bar2);
 
