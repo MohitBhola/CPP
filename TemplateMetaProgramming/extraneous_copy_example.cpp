@@ -48,8 +48,8 @@ int main(int argc, char **argv)
     
     Foo<int const, string> foo2{2, "xyz"}
     // foo2 (Foo<int const, string>) is a mismatch for the parameter type of Bar(Foo<int, string> const&)
-    // a temporary (of type Foo<int, string>) is thus created from foo2 (which is of type Foo<int const, string>)
-    // thus the extraneous copy
+    // a temporary (of type Foo<int, string>) is thus created from foo2 (which is of type Foo<int const, string>),
+    // and the parameter of Bar(Foo<int, string> const&) binds to it, thus the extraneous copy
     Bar(foo2);
     
     return 0;
