@@ -11,13 +11,13 @@ size_t fill(T* ptr, size_t numElements, T const& initialValue)
 {
     T val = initialValue;
 
-    // fill only half 
+    // fill only half of the array
     for (size_t i = 0; i < numElements / 2; ++i)
     {
         *ptr++ = initialValue++;
     }
 
-    // inform that we filled only half
+    // inform that we filled only half of the array
     return numElements / 2;
 }
 
@@ -34,7 +34,10 @@ int main()
     // and then request a legacy C API to *overwrite* it with useful values
     // note that such a legacy API must not alter the size of the array
     // it should just overwrite useful values
-    // if it did alter the size of the array, the container would not know about it and would become corrupt
+    // if it did alter the size of the array, the vector would not know about it and would become corrupt
+    
+    // also, if there are any semantic constraints, such as *the vector shall always remain sorted*
+    // either the legacy C API or the calling code should assume the responsibility to uphold such constraints
     vector<int> ivec(sz);
     ivec.resize(fill(&ivec[0], ivec.size(), 42));
 
