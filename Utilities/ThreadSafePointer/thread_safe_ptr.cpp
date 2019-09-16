@@ -178,7 +178,6 @@ void f1()
 
     // thread safe transactional semantics
     // thread_safe_ptr implements the BasicLockable interface
-
     safeFoo.lock();
     safeFoo->doSomething2();
     safeFoo->doSomething3();
@@ -206,19 +205,18 @@ void f2()
 // either f3 or f4 populates safeMap_copy
 // depending on which thread successfully acquires locks on both safeMap and safeMap_copy first
 
-
 // thread_safe_ptr<std::map> allows for assignment
 // since the underlying std::map supports the same
-
 
 // [SUBTLE]
 // we need to acquire a lock on both underlying shared resources (std::map)
 // but different threads may try to acquire those locks
 // in different orders which is a classic recipe for a deadlock
+
 // for example, note that f3() and f4() below acquire locks in different orders
+
 // we need to acquire these locks atomically
 // thankfully, std::lock() allows just that!
-
 void f3()
 {
     {
