@@ -6,7 +6,7 @@ using namespace std;
 
 decltype(auto) RemoveEvenNumbersLambda()
 {
-    static auto sLambda = [](auto&& elem){return elem % 2 == 0;};
+    static auto const& sLambda = [](auto&& elem){return elem % 2 == 0;};
     return sLambda;
 }
 
