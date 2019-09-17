@@ -1,0 +1,22 @@
+template<
+    std::size_t N>
+struct Foo
+{
+    constexpr static std::size_t value = N;
+    using type = char[N];
+};    
+
+template<
+    typename T>
+void Bar()
+{
+    using ERROR_T_DOES_NOT_CONTAIN_type = typename T::type;
+    decltype(T::value) ERROR_T_DOES_NOT_CONTAIN_value(T::value);
+}    
+
+int main()
+{    
+    Bar<Foo<42>>(); // OK
+    
+    return 0;
+}
