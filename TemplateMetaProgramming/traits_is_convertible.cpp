@@ -11,7 +11,7 @@ struct Derived : Base
 template <typename T>
 struct IsConvertibleHelperT
 {
-	static void aux(T);
+    static void aux(T);
 };
 
 template<
