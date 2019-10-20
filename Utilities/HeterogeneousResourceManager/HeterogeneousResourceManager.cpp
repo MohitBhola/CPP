@@ -45,14 +45,14 @@ public:
 		if (resourcesToBeReset<T>.find(this) == resourcesToBeReset<T>.end())
 		{
 			resourceReleaseFunctions.push_back([](ResourceManager const* rm)
-            {
-                for (auto& resource : resourcesToBeReset<T>[rm])
-                {
-                    resource.reset();
-                }
+		{
+		for (auto& resource : resourcesToBeReset<T>[rm])
+		{
+		    resource.reset();
+		}
 
-                resourcesToBeReset<T>.erase(rm);
-            });
+		resourcesToBeReset<T>.erase(rm);
+		});
 		}
 
 		resourcesToBeReset<T>[this].push_back(t);
@@ -64,14 +64,14 @@ public:
 		if (resourcesToBeCleared<T>.find(this) == resourcesToBeCleared<T>.end())
 		{
 			resourceReleaseFunctions.push_back([](ResourceManager const* rm)
-            {
-                for (auto& resource : resourcesToBeCleared<T>[rm])
-                {
-                    resource.Clear();
-                }
+		{
+		for (auto& resource : resourcesToBeCleared<T>[rm])
+		{
+		    resource.Clear();
+		}
 
-                resourcesToBeCleared<T>.erase(rm);
-            });
+		resourcesToBeCleared<T>.erase(rm);
+		});
 		}
 
 		resourcesToBeCleared<T>[this].push_back(t);
