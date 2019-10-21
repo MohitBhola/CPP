@@ -41,75 +41,75 @@ private:
     template <typename T, typename Deleter>
     static std::unordered_map<ResourceManager const*, std::vector<std::pair<T, Deleter>>> resourcesToBeDeletedViaDeleter{};
 
-    std::vector<std::function<void(ResourceManager const* rm)>> resourceReleaseFunctions{};
+    std::vector<std::function<void(ResourceManager const*)>> resourceReleaseFunctions{};
 
 public:
 
     template <typename T>
-    std::enable_if_t<HasReset<T>::value && !HasClear<T>::value> registerResource(std::reference_wrapper<T> t)
+    std::enable_if_t<HasReset<T>::value && !HasClear<T>::value> registerResource(std::reference_wrapper<T> resource)
     {
         if (resourcesToBeReset<T>.find(this) == resourcesToBeReset<T>.end())
         {
-            resourceReleaseFunctions.push_back([](ResourceManager const* rm)
+            resourceReleaseFunctions.push_back([](ResourceManager const* resourceManager)
             {
-                for (auto& resource : resourcesToBeReset<T>[rm])
+                for (auto& resource : resourcesToBeReset<T>[resourceManager])
                 {
                     resource.reset();
                 }
                 
-                resourcesToBeReset<T>.erase(rm);
+                resourcesToBeReset<T>.erase(resourceManager);
             });
         }
 
-        resourcesToBeReset<T>[this].push_back(t);
+        resourcesToBeReset<T>[this].push_back(resource);
     }
     
     template <typename T>
-    std::enable_if_t<!HasReset<T>::value && HasClear<T>::value> registerResource(std::reference_wrapper<T> t)
+    std::enable_if_t<!HasReset<T>::value && HasClear<T>::value> registerResource(std::reference_wrapper<T> resource)
     {
         if (resourcesToBeCleared<T>.find(this) == resourcesToBeCleared<T>.end())
         {
-            resourceReleaseFunctions.push_back([](ResourceManager const* rm)
+            resourceReleaseFunctions.push_back([](ResourceManager const* resourceManager)
             {
-                for (auto& resource : resourcesToBeCleared<T>[rm])
+                for (auto& resource : resourcesToBeCleared<T>[resourceManager])
                 {
                     resource.Clear();
                 }
 
-                resourcesToBeCleared<T>.erase(rm);
+                resourcesToBeCleared<T>.erase(resourceManager);
             });
         }
 
-        resourcesToBeCleared<T>[this].push_back(t);
+        resourcesToBeCleared<T>[this].push_back(resource);
     }
     
     template <typename T>
-    std::enable_if_t<!HasReset<T>::value && !HasClear<T>::value> registerResource(std::reference_wrapper<T> t)
+    std::enable_if_t<!HasReset<T>::value && !HasClear<T>::value> registerResource(std::reference_wrapper<T> resource)
     {
         if (resourcesToBeDeleted<T>.find(this) == resourcesToBeDeleted<T>.end())
         {
-            resourceReleaseFunctions.push_back([](ResourceManager const* rm)
+            resourceReleaseFunctions.push_back([](ResourceManager const* resourceManager)
             {
-                for (auto& resource : resourcesToBeDeleted<T>[rm])
+                for (auto& resource : resourcesToBeDeleted<T>[resourceManager])
                 {
                     delete resource;
                 }
                 
-                resourcesToBeDeleted<T>.erase(rm);
+                resourcesToBeDeleted<T>.erase(resourceManager);
             });
         }
 
-        resourcesToBeDeleted<T>[this].push_back(t);
+        resourcesToBeDeleted<T>[this].push_back(resource);
     }
     
     template <typename T, typename Deleter>
-    std::enable_if_t<!HasReset<T>::value && !HasClear<T>::value> registerResource(std::reference_wrapper<T> t, Deleter&& deleter)
+    std::enable_if_t<!HasReset<T>::value && !HasClear<T>::value> registerResource(std::reference_wrapper<T> resource, Deleter&& deleter)
     {
         if (resourcesToBeDeletedViaDeleter<T, Deleter>.find(this) == resourcesToBeDeletedViaDeleter<T, Deleter>.end())
         {
-            resourceReleaseFunctions.push_back([](ResourceManager const* rm)
+            resourceReleaseFunctions.push_back([](ResourceManager const* resourceManager)
             {
-                for (auto& pair : resourcesToBeDeletedViaDeleter<T, Deleter>[rm])
+                for (auto& pair : resourcesToBeDeletedViaDeleter<T, Deleter>[resourceManager])
                 {
                     auto& resource = pair.first;
                     auto& deleter = pair.second;
@@ -117,11 +117,11 @@ public:
                     deleter(resource);
                 }
                 
-                resourcesToBeDeletedViaDeleter<T, Deleter>.erase(rm);
+                resourcesToBeDeletedViaDeleter<T, Deleter>.erase(resourceManager);
             });
         }
 
-        resourcesToBeDeletedViaDeleter<T, Deleter>[this].push_back(std::make_pair(t, std::forward<Deleter>(deleter)));
+        resourcesToBeDeletedViaDeleter<T, Deleter>[this].push_back(std::make_pair(resource, std::forward<Deleter>(deleter)));
     }
 
     static ResourceManager& GetResourceManager()
