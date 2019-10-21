@@ -34,6 +34,12 @@ private:
 	
 	template <typename T>
 	static std::unordered_map<ResourceManager const*, std::vector<T>> resourcesToBeCleared{};
+	
+	template <typename T>
+	static std::unordered_map<ResourceManager const*, std::vector<T>> resourcesToBeDeleted{};
+	
+	template <typename T, typename Deleter>
+	static std::unordered_map<ResourceManager const*, std::vector<std::pair<T, Deleter>>> resourcesToBeDeletedViaDeleter{};
 
 	std::vector<std::function<void(ResourceManager const* rm)>> resourceReleaseFunctions{};
 
@@ -44,16 +50,15 @@ public:
 	{
 		if (resourcesToBeReset<T>.find(this) == resourcesToBeReset<T>.end())
 		{
-		resourceReleaseFunctions.push_back([](ResourceManager const* rm)
-		{
-		    for (auto& resource : resourcesToBeReset<T>[rm])
-		    {
-			resource.reset();
-		    }
-
-		    resourcesToBeReset<T>.erase(rm);
-		});
-
+			resourceReleaseFunctions.push_back([](ResourceManager const* rm)
+			    {
+			        for (auto& resource : resourcesToBeReset<T>[rm])
+			        {
+			            resource.reset();
+			        }
+			        
+			        resourcesToBeReset<T>.erase(rm);
+			    });
 		}
 
 		resourcesToBeReset<T>[this].push_back(t);
@@ -64,18 +69,59 @@ public:
 	{
 		if (resourcesToBeCleared<T>.find(this) == resourcesToBeCleared<T>.end())
 		{
-		    resourceReleaseFunctions.push_back([](ResourceManager const* rm)
-		    {
-			for (auto& resource : resourcesToBeCleared<T>[rm])
-			{
-			    resource.Clear();
-			}
-
-			resourcesToBeCleared<T>.erase(rm);
-		    });
+			resourceReleaseFunctions.push_back([](ResourceManager const* rm)
+			    {
+			        for (auto& resource : resourcesToBeCleared<T>[rm])
+			        {
+			            resource.Clear();
+			        }
+			        
+			        resourcesToBeCleared<T>.erase(rm);
+			    });
 		}
 
 		resourcesToBeCleared<T>[this].push_back(t);
+	}
+	
+	template <typename T>
+	std::enable_if_t<!HasReset<T>::value && !HasClear<T>::value> registerResource(std::reference_wrapper<T> t)
+	{
+		if (resourcesToBeDeleted<T>.find(this) == resourcesToBeDeleted<T>.end())
+		{
+			resourceReleaseFunctions.push_back([](ResourceManager const* rm)
+			    {
+			        for (auto& resource : resourcesToBeDeleted<T>[rm])
+			        {
+			            delete resource;
+			        }
+			        
+			        resourcesToBeDeleted<T>.erase(rm);
+			    });
+		}
+
+		resourcesToBeDeleted<T>[this].push_back(t);
+	}
+	
+	template <typename T, typename Deleter>
+	std::enable_if_t<!HasReset<T>::value && !HasClear<T>::value> registerResource(std::reference_wrapper<T> t, Deleter&& deleter)
+	{
+		if (resourcesToBeDeletedViaDeleter<T, Deleter>.find(this) == resourcesToBeDeletedViaDeleter<T, Deleter>.end())
+		{
+			resourceReleaseFunctions.push_back([](ResourceManager const* rm)
+			    {
+			        for (auto& pair : resourcesToBeDeletedViaDeleter<T, Deleter>[rm])
+			        {
+			            auto& resource = pair.first;
+			            auto& deleter = pair.second;
+			            
+			            deleter(resource);
+			        }
+			        
+			        resourcesToBeDeletedViaDeleter<T, Deleter>.erase(rm);
+			    });
+		}
+
+		resourcesToBeDeletedViaDeleter<T, Deleter>[this].push_back(std::make_pair(t, std::forward<Deleter>(deleter)));
 	}
 
 	static ResourceManager& GetResourceManager()
@@ -98,11 +144,17 @@ public:
 	~ResourceManager() noexcept = default;
 };
 
-template<class T>
+template<typename T>
 std::unordered_map<ResourceManager const*, std::vector<T>> ResourceManager::resourcesToBeReset;
 
-template<class T>
+template<typename T>
 std::unordered_map<ResourceManager const*, std::vector<T>> ResourceManager::resourcesToBeCleared;
+
+template<typename T>
+std::unordered_map<ResourceManager const*, std::vector<T>> ResourceManager::resourcesToBeDeleted;
+
+template<typename T, typename Deleter>
+std::unordered_map<ResourceManager const*, std::vector<std::pair<T, Deleter>>> ResourceManager::resourcesToBeDeletedViaDeleter;
 
 struct Foo
 {
@@ -133,6 +185,14 @@ struct Baz
     }
 };
 
+struct ABC
+{
+    ~ABC() noexcept
+    {
+        std::cout << "ABC getting destroyed" << '\n';
+    }
+};
+
 int main()
 {
     auto pFoo = std::make_shared<Foo>();
@@ -143,6 +203,14 @@ int main()
     ResourceManager::GetResourceManager().registerResource(std::ref(pBar));   
     
     ResourceManager::GetResourceManager().registerResource(std::ref(aBaz));   
+    
+    auto abc1 = new ABC();
+    ResourceManager::GetResourceManager().registerResource(std::ref(abc1));
+    
+    auto abc2 = new ABC();
+    ResourceManager::GetResourceManager().registerResource(std::ref(abc2), [](auto const* p) {
+        std::cout << "This ABC instance is getting destroyed via a Deleter" << '\n';
+        delete p;});   
     
     ResourceManager::GetResourceManager().Flush();
     
