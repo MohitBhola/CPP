@@ -108,17 +108,17 @@ public:
         if (resourcesToBeDeletedViaDeleter<T, Deleter>.find(this) == resourcesToBeDeletedViaDeleter<T, Deleter>.end())
         {
             resourceReleaseFunctions.push_back([](ResourceManager const* rm)
+            {
+                for (auto& pair : resourcesToBeDeletedViaDeleter<T, Deleter>[rm])
                 {
-                    for (auto& pair : resourcesToBeDeletedViaDeleter<T, Deleter>[rm])
-                    {
-                        auto& resource = pair.first;
-                        auto& deleter = pair.second;
-                        
-                        deleter(resource);
-                    }
+                    auto& resource = pair.first;
+                    auto& deleter = pair.second;
                     
-                    resourcesToBeDeletedViaDeleter<T, Deleter>.erase(rm);
-                });
+                    deleter(resource);
+                }
+                
+                resourcesToBeDeletedViaDeleter<T, Deleter>.erase(rm);
+            });
         }
 
         resourcesToBeDeletedViaDeleter<T, Deleter>[this].push_back(std::make_pair(t, std::forward<Deleter>(deleter)));
