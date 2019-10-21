@@ -46,38 +46,38 @@ private:
 public:
 
     template <typename T>
-    std::enable_if_t<HasReset<T>::value> registerResource(std::reference_wrapper<T> t)
+    std::enable_if_t<HasReset<T>::value && !HasClear<T>::value> registerResource(std::reference_wrapper<T> t)
     {
         if (resourcesToBeReset<T>.find(this) == resourcesToBeReset<T>.end())
         {
             resourceReleaseFunctions.push_back([](ResourceManager const* rm)
+            {
+                for (auto& resource : resourcesToBeReset<T>[rm])
                 {
-                    for (auto& resource : resourcesToBeReset<T>[rm])
-                    {
-                        resource.reset();
-                    }
-                    
-                    resourcesToBeReset<T>.erase(rm);
-                });
+                    resource.reset();
+                }
+                
+                resourcesToBeReset<T>.erase(rm);
+            });
         }
 
         resourcesToBeReset<T>[this].push_back(t);
     }
     
     template <typename T>
-    std::enable_if_t<HasClear<T>::value> registerResource(std::reference_wrapper<T> t)
+    std::enable_if_t<!HasReset<T>::value && HasClear<T>::value> registerResource(std::reference_wrapper<T> t)
     {
         if (resourcesToBeCleared<T>.find(this) == resourcesToBeCleared<T>.end())
         {
             resourceReleaseFunctions.push_back([](ResourceManager const* rm)
-                {
+            {
                 for (auto& resource : resourcesToBeCleared<T>[rm])
                 {
                     resource.Clear();
                 }
 
                 resourcesToBeCleared<T>.erase(rm);
-                });
+            });
         }
 
         resourcesToBeCleared<T>[this].push_back(t);
@@ -89,14 +89,14 @@ public:
         if (resourcesToBeDeleted<T>.find(this) == resourcesToBeDeleted<T>.end())
         {
             resourceReleaseFunctions.push_back([](ResourceManager const* rm)
+            {
+                for (auto& resource : resourcesToBeDeleted<T>[rm])
                 {
-                    for (auto& resource : resourcesToBeDeleted<T>[rm])
-                    {
-                        delete resource;
-                    }
-                    
-                    resourcesToBeDeleted<T>.erase(rm);
-                });
+                    delete resource;
+                }
+                
+                resourcesToBeDeleted<T>.erase(rm);
+            });
         }
 
         resourcesToBeDeleted<T>[this].push_back(t);
