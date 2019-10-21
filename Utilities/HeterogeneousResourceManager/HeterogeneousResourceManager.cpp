@@ -71,12 +71,12 @@ public:
 		{
 			resourceReleaseFunctions.push_back([](ResourceManager const* rm)
 			    {
-			        for (auto& resource : resourcesToBeCleared<T>[rm])
-			        {
-			            resource.Clear();
-			        }
-			        
-			        resourcesToBeCleared<T>.erase(rm);
+				for (auto& resource : resourcesToBeCleared<T>[rm])
+				{
+				    resource.Clear();
+				}
+
+				resourcesToBeCleared<T>.erase(rm);
 			    });
 		}
 
