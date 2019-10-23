@@ -9,7 +9,7 @@ class is_dereferenceable_helper
     template <typename U, typename = decltype(*std::declval<U>())>
     static std::true_type test(U*);
     
-	template <typename>
+    template <typename>
     static std::false_type test(...);
     
 public:
