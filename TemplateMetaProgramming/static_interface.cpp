@@ -1,6 +1,10 @@
 #include <iostream>
 using namespace std;
 
+template <typename T>
+struct instance_of
+{};
+
 template <typename static_type, typename aux_t = void>
 class static_interface
 {
@@ -27,8 +31,8 @@ protected:
     }
 };
 
-template <typename static_type>
-class IDerived : public static_interface<static_type>
+template <typename static_type, typename value_t>
+class IDerived : public static_interface<static_type, value_t>
 {
 protected:
 
@@ -38,33 +42,52 @@ public:
 
     void foo() const
     {
-        this->true_this().foo();
+        this->true_this().fooImpl(instance_of<value_t>());
     }
     
     void bar() const
     {
-        this->true_this().bar();
+        this->true_this().barImpl(instance_of<value_t>());
     }
 };
 
-class DerivedImpl : public IDerived<DerivedImpl>
+class DerivedImpl 
+: public IDerived<DerivedImpl, int>
+, public IDerived<DerivedImpl, float>
+, public IDerived<DerivedImpl, double>
 {
 
 public:
 
-    void foo() const
+    void fooImpl(instance_of<int>) const
     {
-        cout << "DerivedImpl::foo()" << '\n';
+        cout << "DerivedImpl::foo(int)" << '\n';
+    }
+    void fooImpl(instance_of<float>) const
+    {
+        cout << "DerivedImpl::foo(float)" << '\n';
+    }
+    void fooImpl(instance_of<double>) const
+    {
+        cout << "DerivedImpl::foo(double)" << '\n';
     }
     
-    void bar() const
+    void barImpl(instance_of<int>) const
     {
-        cout << "DerivedImpl::bar()" << '\n';
+        cout << "DerivedImpl::bar(int)" << '\n';
+    }
+    void barImpl(instance_of<float>) const
+    {
+        cout << "DerivedImpl::bar(float)" << '\n';
+    }
+    void barImpl(instance_of<double>) const
+    {
+        cout << "DerivedImpl::bar(double)" << '\n';
     }
 };
 
-template <typename T>
-void func(IDerived<T> const& iref)
+template <typename value_t, typename static_type>
+void func(IDerived<static_type, value_t> const& iref)
 {
     iref.foo();
     iref.bar();
@@ -72,9 +95,10 @@ void func(IDerived<T> const& iref)
 
 int main()
 {
-
     DerivedImpl impl{};
-    func(impl);
+    func<int>(impl);
+    func<float>(impl);
+    func<double>(impl);
 
     return 0;
 }
