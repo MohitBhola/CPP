@@ -1,10 +1,17 @@
 #include <iostream>
 using namespace std;
 
+/*
+** A utility to compute the index of the highest order 1 bit in an unsigned
+** Useful for implementing merging traits and type hiding in TMP
+*/
+
 constexpr int highest_index_helper(unsigned N)
 {
     if (N == 0)
+    {    
         return -1;
+    }    
  
     int index = -1;       
     unsigned accumulator = 1;
