@@ -19,7 +19,6 @@ constexpr int highest_index_helper(unsigned N)
     return index;
 }
 
-// interface IDs
 enum Interfaces : int
 {
     none = -1,
@@ -31,26 +30,33 @@ enum Interfaces : int
 template <int INTERFACE = Interfaces::none>
 struct interface_traits;
 
-// interface definitions
 template <>
 struct interface_traits<Interfaces::A>
 {
-    virtual void funcA() = 0;
+    void funcA()
+    {
+        cout << "funcA()" << '\n';
+    }
 };
 
 template <>
 struct interface_traits<Interfaces::B>
 {
-    virtual void funcB() = 0;
+    void funcB()
+    {
+        cout << "funcB()" << '\n';
+    }
 };
 
 template <>
 struct interface_traits<Interfaces::C>
 {
-    virtual void funcC() = 0;
+    void funcC()
+    {
+        cout << "funcC()" << '\n';
+    }
 };
 
-// interface aggregation
 template <int InterfaceFlags>
 struct interface_traits 
 : interface_traits<InterfaceFlags & (1 << highest_index_helper(InterfaceFlags))>
@@ -58,42 +64,23 @@ struct interface_traits
 {};
 
 /*
-** Every concrete class in the system is a template taking an unsigned that encodes the supported interfaces
+** Concrete class is a template taking an unsigned that encodes the supported functionality
 */
 template <int InterfaceFlags>
-struct ConcreteClass1
+struct ConcreteClass
 : public interface_traits<InterfaceFlags>
-{
-    void funcA()
-    {
-        cout << "MyInterface::funcA()" << '\n';
-    }
-    void funcB()
-    {
-        cout << "MyInterface::funcB()" << '\n';
-    }
-};
-
-template <int InterfaceFlags>
-struct ConcreteClass2
-: public interface_traits<InterfaceFlags>
-{
-    void funcC()
-    {
-        cout << "MyInterface::funcC()" << '\n';
-    }
-};
+{};
 
 int main()
 {    
-    ConcreteClass1<Interfaces::A | Interfaces::B> obj1;
+    ConcreteClass<Interfaces::A | Interfaces::B> obj1;
     
     obj1.funcA();
     obj1.funcB();
     
-    cout << "-------------------------------------\n";
+    cout << "--------\n";
     
-    ConcreteClass2<Interfaces::C> obj2;
+    ConcreteClass<Interfaces::C> obj2;
     
     obj2.funcC();
     
