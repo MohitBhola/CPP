@@ -1,22 +1,19 @@
 #include <iostream>
 using namespace std;
 
-template<
-    int N,
-    typename T>
+template <int N,typename T>
 struct A
 {
-    auto foo()
+    static int foo()
     {
         return N;
     }
 };
 
-template<
-    int N>
-struct B : A<N % 2, B<N>>, B<N / 2>
+template <int N>
+struct B : A<N % 2, B<N>>, B<N/2>
 {
-    auto foo()
+    static int foo()
     {
         return A<N % 2, B<N>>::foo();
     }
@@ -28,8 +25,7 @@ struct B<0>
 
 int main()
 {
-    cout << B<9>::foo << '\n';
+    cout << B<9>::foo() << '\n';
     
     return 0;
 }
-
