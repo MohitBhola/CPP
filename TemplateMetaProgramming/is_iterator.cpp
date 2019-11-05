@@ -36,6 +36,9 @@ struct is_iterator<T*>
     static constexpr bool value = true;
 };
 
+struct Foo
+{};
+
 int main()
 {
     cout << boolalpha << is_iterator<vector<int>::iterator>::value << '\n';
@@ -48,6 +51,13 @@ int main()
     
     return 0;
 }
+
+/*
+true
+true
+true
+false
+*/
 
 
 
