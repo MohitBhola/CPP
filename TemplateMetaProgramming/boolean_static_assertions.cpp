@@ -18,7 +18,10 @@ struct static_assertion<true>
 
 int main()
 {    
+    // this would allocate (and thus waste) stack space equivalent to sizeof(static_assertion<boolean>)
     const static_assertion<(char(255)>0)> ASSERT2("char is unsigned");
+    
+    // this wouldn't allocate any stack space
     ASSERT((char(255) > 0));
       
     return 0;
@@ -26,12 +29,12 @@ int main()
 
 /*
 main.cpp: In function 'int main()':
-main.cpp:21:50: error: variable 'const static_assertion<false> ASSERT2' has initializer but incomplete type
-   21 |     const static_assertion<(char(255)>0)> ASSERT2("char is unsigned");
+main.cpp:22:50: error: variable 'const static_assertion<false> ASSERT2' has initializer but incomplete type
+   22 |     const static_assertion<(char(255)>0)> ASSERT2("char is unsigned");
       |                                                  ^
 main.cpp:17:61: error: invalid application of 'sizeof' to incomplete type 'static_assertion<false>'
    17 | #define ASSERT(condition) sizeof(static_assertion<condition>)
       |                                                             ^
-main.cpp:22:5: note: in expansion of macro 'ASSERT'
-   22 |     ASSERT((char(255) > 0));
+main.cpp:25:5: note: in expansion of macro 'ASSERT'
+   25 |     ASSERT((char(255) > 0));
 */
