@@ -4,15 +4,13 @@
  * or template function local variable(s)
  */
  
-template<
-    typename T>
+template <typename T>
 struct Foo
 {
     enum class Values {value = 42}; 
 };    
 
-template<
-    typename T>
+template <typename T>
 void f(T t)
 {
     ++t;          // ERROR if T = named/unnamed enum
