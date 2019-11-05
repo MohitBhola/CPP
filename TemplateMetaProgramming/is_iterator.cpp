@@ -20,21 +20,18 @@ DEFINE_HAS_TYPE(reference);
 DEFINE_HAS_TYPE(iterator_category);
 
 template <typename T>
-struct is_iterator
-{
-    static constexpr bool value = conjunction_v<
-                                    has_type_difference_type<T>,
-                                    has_type_value_type<T>,
-                                    has_type_pointer<T>,
-                                    has_type_reference<T>,
-                                    has_type_iterator_category<T>>;
-};
+struct is_iterator : bool_constant<
+                        conjunction_v<
+                            has_type_difference_type<T>,
+                            has_type_value_type<T>,
+                            has_type_pointer<T>,
+                            has_type_reference<T>,
+                            has_type_iterator_category<T>>>
+{};
 
 template <typename T>
-struct is_iterator<T*>
-{
-    static constexpr bool value = true;
-};
+struct is_iterator<T*> : true_type
+{};
 
 struct Foo
 {};
