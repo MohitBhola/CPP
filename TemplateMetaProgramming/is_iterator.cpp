@@ -30,10 +30,20 @@ struct is_iterator
                                     has_type_iterator_category<T>>;
 };
 
+template <typename T>
+struct is_iterator<T*>
+{
+    static constexpr bool value = true;
+};
+
 int main()
 {
     cout << boolalpha << is_iterator<vector<int>::iterator>::value << '\n';
     cout << boolalpha << is_iterator<vector<int>::const_iterator>::value << '\n';
+    cout << boolalpha << is_iterator<Foo*>::value << '\n';
+    
+    // note that a std::map has all the typedefs required from a standard iterator
+    // *except* iterator_category
     cout << boolalpha << is_iterator<std::map<int, int>>::value << '\n';
     
     return 0;
