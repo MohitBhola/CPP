@@ -48,11 +48,14 @@ bool operator!=(iterator_t it, c_string_end<char_t> const& mimesis)
 
 int main()
 {
-    char const* src = "xyz";
     char dst[4];
     
-    (void)doCopy(src, c_string_end<char const>(), dst);
+    char const* src1 = "xyz";
+    (void)doCopy(src1, c_string_end<char const>(), dst);
+    cout << dst << '\n';
     
+    char const* src2 = "abc";
+    (void)doCopy(src2, src2+strlen(src2), dst);
     cout << dst << '\n';
 
     return 0;    
@@ -60,4 +63,5 @@ int main()
 
 /*
 xyz
+abc
 */
