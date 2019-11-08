@@ -20,12 +20,12 @@ struct c_string_end
 {
     operator iterator_t() const
     {
-        return 0;
+        return iterator_t{};
     }
     
     bool operator==(iterator_t it) const
     {
-        return (it == 0 || *it == 0);
+        return (it == iterator_t{} || *it == 0);
     }
     
     bool operator!=(iterator_t it) const
@@ -60,8 +60,3 @@ int main()
 
     return 0;    
 }
-
-/*
-xyz
-abc
-*/
