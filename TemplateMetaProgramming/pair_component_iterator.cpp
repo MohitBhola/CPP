@@ -245,6 +245,8 @@ int main()
     map_t const& cm = m;
     
     for_each(select<1>(cm.begin()), select<1>(cm.end()), [](auto& elem){cout << elem << '\t';});
+    
+    // ERROR: the second component of a const pair is a const too
     //for_each(select<2>(cm.begin()), select<2>(cm.end()), [](auto& elem){elem *= 2;});
     
     return 0;   
