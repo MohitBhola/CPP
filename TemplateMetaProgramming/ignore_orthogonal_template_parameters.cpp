@@ -5,7 +5,7 @@
 using namespace std;
 
 // the 2nd non-type template parameter specifies the initial capacity of the special vector; it is an implementation detail
-// but still, it renders two special vector with different initial capacities as different types
+// but still, it renders two special vectors of the same type but with different initial capacities as different types
 // to *ignore* this implementation detail, some member functions of the class template special_vector need to be promoted to templates
 // for example, we may need to provide an equality operator that can compare any two special vector types regardless of their initial capacity
 template <typename T, size_t N = 0>
