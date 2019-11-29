@@ -5,6 +5,7 @@ using namespace std;
 // an iterator need not be necessarily coupled with an underlying container/data-source
 // it just needs to implement a minimal interface
 // in this example, we implement a simple iterator that progressively generates sequential values of any integral type
+// it quallifies to be usable in the fancy C++11 range-based for loop
 template <typename T, typename = std::enable_if_t<std::is_integral_v<T>>>
 class num_iterator
 {
