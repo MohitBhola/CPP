@@ -219,3 +219,16 @@ int main()
     
     return 0;
 }
+
+/*
+Baz::Clear called
+Baz getting destroyed
+ABC getting destroyed
+This ABC instance is getting destroyed via a Deleter
+ABC getting destroyed
+1
+1
+Baz getting destroyed
+Bar getting destroyed
+Foo getting destroyed
+*/
