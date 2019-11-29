@@ -293,3 +293,14 @@ int main()
 
     return 0;
 }
+
+/*
+126
+a
+1
+2
+1
+2
+false
+true
+*/
