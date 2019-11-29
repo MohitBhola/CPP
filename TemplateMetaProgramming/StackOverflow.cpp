@@ -26,7 +26,7 @@ int main()
     derived d1{};
     derived d2 = d1;
     
-	return 0;
+    return 0;
 }
 
 /*
