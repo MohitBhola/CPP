@@ -6,6 +6,11 @@ using namespace std;
 // it just needs to implement a minimal interface
 // in this example, we implement a simple iterator that progressively generates sequential values of any integral type
 // it quallifies to be usable in the fancy C++11 range-based for loop
+#include <iostream>
+#include <type_traits>
+#include <algorithm>
+using namespace std;
+
 template <typename T, typename = std::enable_if_t<std::is_integral_v<T>>>
 class num_iterator
 {
@@ -27,9 +32,23 @@ public:
     {
         return i != other.i;
     }
+    
+    bool operator==(num_iterator const& other) const
+    {
+        return !(i != other.i);
+    }
 };
 
-// num_range is a class that *serves* num_iterators
+namespace std
+{
+    template <>
+    struct iterator_traits<num_iterator<int>>
+    {
+        using value_type = int;
+        using iterator_category = forward_iterator_tag;
+    };
+}
+
 template <typename T, typename = std::enable_if_t<std::is_integral_v<T>>>
 class num_range
 {
@@ -53,10 +72,15 @@ public:
 
 int main()
 {
-    for (int i : num_range(1, 10))
+    auto nr = num_range(1, 10);
+    
+    for (int i : nr)
     {
         cout << i << '\n';
     }
+    
+    auto [minIt, maxIt] = minmax_element(begin(nr), end(nr));
+    cout << "min: " << *minIt << ", max: " << *maxIt << '\n';
     
     return 0;
 }
@@ -71,4 +95,5 @@ int main()
 7
 8
 9
+min: 1, max: 9
 */
