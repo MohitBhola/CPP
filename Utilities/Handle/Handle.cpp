@@ -7,6 +7,17 @@
 
 using namespace std;
 
+/*
+ * This utility could be used to *decouple* the actual storage of an object from 
+ * a client that aggregates it, allowing fine grained control over the lifetime
+ * of the object.
+ *
+ * Effectively, it allows for *static* storage for any type T via a proxy, Handle<T>, and provides
+ * the clients precise control of their lifetime by exposing resource release functions.
+ *
+ * Note that this is a work in progress. In particular, the current implementation isn't thread safe. 
+ * Will do.
+ */
 auto& GetResourceReleaseFunctions()
 {
     static std::vector<std::function<void()>> resourceReleaseFunctions;
