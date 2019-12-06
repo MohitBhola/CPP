@@ -4,20 +4,10 @@
 #include <functional>
 #include <iostream>
 #include <memory>
+#include <mutex>
 
 using namespace std;
 
-/*
- * This utility could be used to *decouple* the actual storage of an object from 
- * a client that aggregates it, allowing fine grained control over the lifetime
- * of the object.
- *
- * Effectively, it allows for *static* storage for any type T via a proxy, Handle<T>, and provides
- * the clients precise control of their lifetime by exposing resource release functions.
- *
- * Note that this is a work in progress. In particular, the current implementation isn't thread safe. 
- * Will do.
- */
 auto& GetResourceReleaseFunctions()
 {
     static std::vector<std::function<void()>> resourceReleaseFunctions;
@@ -29,7 +19,9 @@ class Handle
 {    
 	template <typename U>
 	static std::unordered_map<uintptr_t, U> resources;
-
+	
+	std::shared_ptr<std::recursive_mutex> mMutex {std::make_shared<std::recursive_mutex>()};
+	
 public:
 
     Handle() = default;
@@ -37,6 +29,8 @@ public:
 	template <typename... Ts>	
 	void reset(Ts&&... ts) 
 	{
+	    std::lock_guard<std::recursive_mutex> guard(*mMutex);
+	    
 	    static auto thisPtr = reinterpret_cast<uintptr_t>(this);
 	    
 		if (resources<T>.find(thisPtr) == resources<T>.end())
@@ -45,12 +39,11 @@ public:
 			
 			GetResourceReleaseFunctions().push_back([=]()
 			{
-			    // we *reset* by assigning a default constructed object to the live object
+			    std::lock_guard<std::recursive_mutex> guard(*mMutex);
+			    
 			    if (resources<T>.find(thisPtr) != resources<T>.end())
 			    {
 			        cout << "Resource Release1.1" << '\n';
-			        
-			        resources<T>[thisPtr] = T();
 				    (void)resources<T>.erase(thisPtr);
 			    }
 			});
@@ -62,24 +55,25 @@ public:
 		}
 	}
 		
+	// this will work only if u could be used to create a T	
 	template <typename U>
 	Handle& operator=(U&& u)
 	{
+	    std::lock_guard<std::recursive_mutex> guard(*mMutex);
+	    
 	    static auto thisPtr = reinterpret_cast<uintptr_t>(this);
 	    
 		if (resources<T>.find(thisPtr) == resources<T>.end())
 		{
-			// this will work only if u could be used to create a T
 			resources<T>.insert(std::make_pair(thisPtr, std::forward<U>(u)));
 			
 			GetResourceReleaseFunctions().push_back([=]()
 			{
-			    // we *reset* by assigning a default constructed object to the live object
+			    std::lock_guard<std::recursive_mutex> guard(*mMutex);
+			    
 			    if (resources<T>.find(thisPtr) != resources<T>.end())
 			    {
 			        cout << "Resource Release1.2" << '\n';
-			        
-			        resources<T>[thisPtr] = T();
 				    (void)resources<T>.erase(thisPtr);
 			    }
 			});
@@ -95,18 +89,24 @@ public:
 	
 	T const& get() const
 	{
+	    std::lock_guard<std::recursive_mutex> guard(*mMutex);
+	    
 	    static auto thisPtr = reinterpret_cast<uintptr_t>(this);
 	    return resources<T>.at(thisPtr);
 	}
 	
 	T& get() 
 	{
+	    std::lock_guard<std::recursive_mutex> guard(*mMutex);
+	    
 	    static auto thisPtr = reinterpret_cast<uintptr_t>(this);
 	    return resources<T>.at(thisPtr);
 	}
 	
 	operator bool() const
 	{
+	    std::lock_guard<std::recursive_mutex> guard(*mMutex);
+	    
 	    static auto thisPtr = reinterpret_cast<uintptr_t>(this);
 	    return resources<T>.find(thisPtr) != resources<T>.end();
 	}
@@ -119,12 +119,16 @@ class Handle<T*>
 	template <typename U>
 	static std::unordered_map<uintptr_t, U*> resourcesToBeDelete;
 	
+	std::shared_ptr<std::recursive_mutex> mMutex {std::make_shared<std::recursive_mutex>()};
+	
 public:
 
     Handle() = default;
         		
 	void reset(T* p) 
 	{
+	    std::lock_guard<std::recursive_mutex> guard(*mMutex);
+	     
 	    static auto thisPtr = reinterpret_cast<uintptr_t>(this);
 	    
 		if (resourcesToBeDelete<T>.find(thisPtr) == resourcesToBeDelete<T>.end())
@@ -133,11 +137,14 @@ public:
 			
 			GetResourceReleaseFunctions().push_back([=]()
 			{
-			    // we *reset* by assigning a default constructed object to the live object
+			    std::lock_guard<std::recursive_mutex> guard(*mMutex);
+			    
 			    if (resourcesToBeDelete<T>.find(thisPtr) != resourcesToBeDelete<T>.end())
 			    {
 			        cout << "Resource Release2.1" << '\n';
 			        
+			        // in the primary template, it sufficed to just erase the entry from the map
+			        // but in the specialization for pointers, we need to free the underlying 
 			        delete resourcesToBeDelete<T>[thisPtr];
 				    (void)resourcesToBeDelete<T>.erase(thisPtr);
 			    }
@@ -153,11 +160,14 @@ public:
 			
 	T const* operator->() const
 	{
+	    std::lock_guard<std::recursive_mutex> guard(*mMutex);
 	    return const_cast<T const*>(const_cast<Handle<T*>>(this)->operator->());
 	}
 	
 	T* operator->() 
 	{
+	    std::lock_guard<std::recursive_mutex> guard(*mMutex);
+	    
 	    static auto thisPtr = reinterpret_cast<uintptr_t>(this);
 	    
 	    if (resourcesToBeDelete<T>.find(thisPtr) != resourcesToBeDelete<T>.end())
@@ -170,6 +180,8 @@ public:
 	
 	operator bool() const
 	{
+	    std::lock_guard<std::recursive_mutex> guard(*mMutex);
+	    
 	    static auto thisPtr = reinterpret_cast<uintptr_t>(this);
 	    return resourcesToBeDelete<T>.find(thisPtr) != resourcesToBeDelete<T>.end();
 	}
@@ -238,12 +250,12 @@ int main()
 }
 
 /*
-43                                                                                                                                                                  
-Foo dtor                                                                                                                                                            
-101                                                                                                                                                                 
-42                                                                                                                                                                  
-Resource Release1.1                                                                                                                                                 
-Foo dtor                                                                                                                                                            
-Resource Release2.1                                                                                                                                                 
-Foo dtor 
+43
+Foo dtor
+101
+42
+Resource Release1.1
+Foo dtor
+Resource Release2.1
+Foo dtor
 */
