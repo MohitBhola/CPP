@@ -1,14 +1,8 @@
-/*
- * main.cpp
- *
- *  Created on: Jun 17, 2019
- *      Author: mbhola
- */
-
 #include <utility>
 #include <tuple>
 #include <map>
 #include <iostream>
+
 using namespace std;
 
 struct NoCopyNoMove
@@ -30,8 +24,8 @@ struct NoCopyNoMove
 	
 private:
 
-	int _i{};
-	int _j{};
+	int _i {};
+	int _j {};
 };
 
 int main()
@@ -49,8 +43,16 @@ int main()
 	// a pair is directly created inside the map
 	// the argument packs for the key and mapped_type directly create them inside that pair
 	map<int, NoCopyNoMove> aMap{};
-	//aMap.emplace(0, 1);
+	
+	// again, this won't compile, and for similar reasons
+	// that is, the NoCopyNoMove temporaries couldn't be copied/moved into the pair being constructed inside the map
+	//aMap.emplace(0, NoCopyNoMove(4,5));
+	
+	// this is right approach
+	// that is, signal piecewise construction of the pair (int const, NoCopyNoMove) *directly* inside the map
 	aMap.emplace(piecewise_construct, forward_as_tuple(42), forward_as_tuple(0,1));
+	
+	// observe
 	for (auto const& pair : aMap)
 	{
 	    cout << "Key: " << pair.first << ", " << "Value: " << pair.second << "\n";
@@ -63,5 +65,3 @@ int main()
 First: (0,1), Second: (2,3)
 Key: 42, Value: (0,1)
 */
-
-
