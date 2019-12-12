@@ -535,3 +535,49 @@ int main()
         
 	return 0;
 }
+
+/*
+fooHandle1 is indeed NULL
+fooHandle1 is now loaded
+HERE1
+101
+handle release function 1.1 
+Foo dtor
+HERE1
+201
+handle release function 1.1 
+Foo dtor
+fooHandle1 is now indeed NULL
+HERE1
+301
+=========================
+
+HERE3
+1001
+handle release function 1.1 
+Foo dtor
+fooHandle2 is indeed NULL
+fooHandle2 is now loaded
+HERE3
+2001
+handle release function 1.1 
+Foo dtor
+Foo dtor
+HERE3
+3001
+=========================
+
+fooPtrHandle is indeed NULL
+fooPtrHandle is now loaded
+HERE5
+42
+Invoking resource release function for handle: 140726566761984
+handle release function 2.1 
+Foo dtor
+Invoking resource release function for handle: 140726566761904
+handle release function 1.1 
+Foo dtor
+Invoking resource release function for handle: 140726566761920
+handle release function 1.1 
+Foo dtor
+*/
