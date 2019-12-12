@@ -33,7 +33,7 @@ struct EnableIfIndirection<T, VoidT<decltype(std::declval<T>().operator->())>> :
 
 template 
 <
-    typename Resource, // SD: Suggest to name T
+    typename Resource,
     typename mutex_t = std::recursive_mutex,
     typename lock_t  = std::unique_lock<mutex_t>
 > 
