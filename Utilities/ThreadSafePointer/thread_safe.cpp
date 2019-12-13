@@ -24,11 +24,11 @@ template
 >
 class thread_safe
 {
-	// a thread_safe *owns* its underlying
-	// as long as a thread_safe object is accessible, its underlying is accessible too
-	// ideally, a thread_safe object would wrap around a shared, global/namespace level object
-	// it could also wrap a data member of a class/struct that could be accessed in different threads
-	
+    // a thread_safe *owns* its underlying
+    // as long as a thread_safe object is accessible, its underlying is accessible too
+    // ideally, a thread_safe object would wrap around a shared, global/namespace level object
+    // it could also wrap a data member of a class/struct that could be accessed in different threads
+    
     std::unique_ptr<Resource> ptr; // the underlying
     std::unique_ptr<mutex_t> mtx;  // the protection
 
@@ -59,7 +59,7 @@ class thread_safe
     // primary template
     template
     <
-    	typename ResourceT,
+        typename ResourceT,
         typename requested_lock_t,
         bool = EnableIfIndirection<ResourceT>::value
     >
@@ -169,11 +169,13 @@ class thread_safe
     };
     
     // the surrogate specialized for types that provide indirection
-    template<
-    	typename ResourceT,
-        typename requested_lock_t>
+    template
+    <
+        typename ResourceT,
+        typename requested_lock_t
+    >
     class proxy<ResourceT, requested_lock_t, true>
-    	: private boost::operators<proxy<ResourceT, requested_lock_t, true>>
+        : private boost::operators<proxy<ResourceT, requested_lock_t, true>>
     {
         ResourceT * const ptr{nullptr};
         requested_lock_t lock {};
@@ -202,8 +204,7 @@ class thread_safe
 
 public:
 
-    template <
-        typename... Args>
+    template <typename... Args>
     thread_safe(Args&&... args)
     : ptr(std::make_unique<Resource>(std::forward<Args>(args)...)), mtx(std::make_unique<mutex_t>()) {}
 
@@ -224,17 +225,17 @@ struct Foo
 
     void doSomething1() 
     {
-    	std::cout << "Foo::doSomething1()\n";
+        std::cout << "Foo::doSomething1()\n";
     }
     
     void doSomething2() 
     {
-    	std::cout << "Foo::doSomething2()\n";
+        std::cout << "Foo::doSomething2()\n";
     }
     
     void doSomething3() 
     {
-    	std::cout << "Foo::doSomething3()\n";
+        std::cout << "Foo::doSomething3()\n";
     }
    
     int i{42};
@@ -405,4 +406,3 @@ false
 true
 Foo::doSomething1()
 */
-
