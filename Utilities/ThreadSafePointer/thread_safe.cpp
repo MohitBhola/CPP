@@ -8,20 +8,20 @@
 template <typename...>
 using VoidT = void;
 
-template<
-	typename T, typename = VoidT<>>
+template <typename T, typename = VoidT<>>
 struct EnableIfIndirection : std::false_type
 {};
 
-template<
-	typename T>
+template <typename T>
 struct EnableIfIndirection<T, VoidT<decltype(std::declval<T>().operator->())>> : std::true_type
 {};
 
-template<
+template 
+<
     typename Resource,
     typename mutex_t = std::recursive_mutex,
-    typename lock_t  = std::unique_lock<mutex_t>>
+    typename lock_t  = std::unique_lock<mutex_t>
+>
 class thread_safe
 {
 	// a thread_safe *owns* its underlying
@@ -57,10 +57,12 @@ class thread_safe
     // this is made possible via a specialization for this class template for wrappers
     
     // primary template
-    template<
+    template
+    <
     	typename ResourceT,
         typename requested_lock_t,
-        bool = EnableIfIndirection<ResourceT>::value>
+        bool = EnableIfIndirection<ResourceT>::value
+    >
     class proxy
         : private boost::operators<proxy<ResourceT, requested_lock_t, EnableIfIndirection<ResourceT>::value>>
     {
