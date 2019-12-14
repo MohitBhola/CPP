@@ -8,30 +8,70 @@
 template <typename...>
 using VoidT = void;
 
-template <typename T, typename = VoidT<>>
-struct EnableIfIndirection : std::false_type
+template<
+	typename T, typename = VoidT<>>
+struct DisableIfIndirection : std::false_type
 {};
 
-template <typename T>
-struct EnableIfIndirection<T, VoidT<decltype(std::declval<T>().operator->())>> : std::true_type
+template<
+	typename T>
+struct DisableIfIndirection<T, VoidT<decltype(std::declval<T>().operator->())>> : std::true_type
 {};
 
-template 
-<
+template<
     typename Resource,
     typename mutex_t = std::recursive_mutex,
-    typename lock_t  = std::unique_lock<mutex_t>
->
+    typename lock_t  = std::unique_lock<mutex_t>,
+    bool = DisableIfIndirection<Resource>::value>
 class thread_safe
 {
-    // a thread_safe *owns* its underlying
-    // as long as a thread_safe object is accessible, its underlying is accessible too
-    // ideally, a thread_safe object would wrap around a shared, global/namespace level object
-    // it could also wrap a data member of a class/struct that could be accessed in different threads
+	/*
+	
+	 A thread_safe object *owns* an underlying object. There could be 2 types of underlyings:
+	
+	 1. A normal, regular class that isn't providing wrapper semantics That is, something that doesn't has an underlying of its own.
+	    
+	    For such underlyings, a thread_safe object shall aggregate a shared_ptr to the underlying. As such, each thread_safe object shall 
+	    *always* have an underlying, and clients need not check them for NULL prior to dereferencing. 
+	    
+	    Copies of such a thread_safe object could be made, though, and each such copy shall contain a shared_ptr to the *same* underlying, 
+	    and would provide thread-safe access to the that *same* underlying.
+		
+		thread_safe objects aren't moveable, though. It is a conscious design choice to disallow moving thread_safe objects. 
+		Rationale: if they provide move semantics, the moved-from thread_safe object shall become *empty* (NULL). This would 
+		necessitate the client code to first check for NULL prior to dereferencing. This would lead to clumsy/bloated usage.
+		  
+		As is, every thread_safe object shall *always* have a shared_ptr to the *same* underlying, and thus clients can freely 
+		dereference them in a thread-safe manner. There might be copies floating around, but each such copy shall allow for thread-safe access to the 
+		*same * underlying.
+	
+	 2. A wrapper, such as a shared_ptr<T>, or an IRef. That is, something that has an underlying of its own, and could be detected
+	    at compile time via the availability of an overloaded indirection operator (operator->()).
+	    
+	    As an aside, note that as per classic C++ language rules, the result of an indirection should either result in a raw pointer, or in an object
+	    of a class that itself overloads the indirection operator. The process continues until the compiler arrives at a raw pointer. If not,
+	    the compile emits an error.
+	    
+		For such *special* underlyings, the thread_safe object shall *directly* aggregate them. And shall provide special indirection 
+		to forward to the (real) underlying of the underlying. 
+		
+		As for the normal case (# 1 above), each thread_safe object shall always have a wrapper that points to the *same* underlying. 
+		Again, copies could be made, but each such copy shall have a wrapper that points to the *same* underlying, and would provide thread-safe
+		access to the *same* underlying in a thread-safe manner.
+		
+		[SUBTLE]
+		The ownership group needs to be a closed one. That is, there shouldn't be a *naked* wrapper anywhere else that points to the *same*
+		underlying as pointed to by a group of copy of thread_safe objects. 
+		
+		Translation: Disallow construction of thread_safe objects to wrapper underlyings via lvalues to such underlyings. RValues are OK, though.
+		We'll move them in to create a source thread_safe object, and any subsequent copies of that thread_safe object shall point to the *same* 
+		underlying, and would allow for thread-safe access to that *same* underlying.
+		
+	*/
+	    
+    std::shared_ptr<Resource> ptr; // the underlying
+    std::shared_ptr<mutex_t> mtx;  // the protection
     
-    std::unique_ptr<Resource> ptr; // the underlying
-    std::unique_ptr<mutex_t> mtx;  // the protection
-
     // The Surrogate
     // what's this?
     // it is a class template whose instantiation(s) provide proxy objects (on the fly) 
@@ -39,32 +79,13 @@ class thread_safe
     // it locks (explicitly) the associated mutex in its ctor and unlocks (implicitly) the same in its destructor 
     // once constructed, it allows for indirection to the underlying
     // it also provides for an implicit conversion to the underlying
-    // 
-    // this class template is specialized for underlying types that are themselves wrappers
-    // for example, shared_ptr<>, unique_ptr<> etc
-    // why?
-    // to provide similar indirection semantics as for normal types
-    // the aim is to let clients write (thread safe) code like this:
-    // 
-    // struct Foo {...};
-    // thread_safe<Foo> tsFoo{};
-    // thread_safe<shared_ptr<Foo>> tsFooSp{std::make_shared<Foo>()};
-    // 
-    // tsFoo->DoSomething();   // OK
-    // tsFooSp->DoSomething(); // Also OK
-    // 
-    // note how the usage is uniform, *irrespective* of the *nature* of the underlying
-    // this is made possible via a specialization for this class template for wrappers
     
     // primary template
-    template
-    <
-        typename ResourceT,
-        typename requested_lock_t,
-        bool = EnableIfIndirection<ResourceT>::value
-    >
+    template<
+    	typename ResourceT,
+        typename requested_lock_t>
     class proxy
-        : private boost::operators<proxy<ResourceT, requested_lock_t, EnableIfIndirection<ResourceT>::value>>
+        : private boost::operators<proxy<ResourceT, requested_lock_t>>
     {
         ResourceT * const ptr{nullptr};
         requested_lock_t lock {};
@@ -167,15 +188,51 @@ class thread_safe
              return *this;
          }
     };
+
+public:
+
+    template <
+        typename... Args>
+    thread_safe(Args&&... args)
+    : ptr(std::make_unique<Resource>(std::forward<Args>(args)...)), mtx(std::make_shared<mutex_t>()) {}
     
-    // the surrogate specialized for types that provide indirection
-    template
-    <
-        typename ResourceT,
-        typename requested_lock_t
-    >
-    class proxy<ResourceT, requested_lock_t, true>
-        : private boost::operators<proxy<ResourceT, requested_lock_t, true>>
+    // provide copy semantics
+    // if a thread_safe object is created via copy semantics,
+    // the copy shares the same underlying and the same associated protection
+    // so, in effect, there could be several thread_safe copies of an underlying
+    // in different threads, and they could access the underlying in a thread safe manner
+    thread_safe(thread_safe const& source) = default;
+    thread_safe& operator=(thread_safe const&) = default;
+
+    // *don't* provide move semantics
+	thread_safe(thread_safe const&&) = delete;
+    thread_safe& operator=(thread_safe&&) = delete;
+    
+    void lock() { mtx->lock(); }
+	bool try_lock() { return mtx->try_lock(); }
+    void unlock() { mtx->unlock(); }
+
+    auto operator->() {return proxy<Resource, lock_t>(ptr.get(), *mtx);}
+    auto const operator->() const {return proxy<Resource, lock_t>(ptr.get(), *mtx);}
+
+    auto operator*() {return proxy<Resource, lock_t>(ptr.get(), *mtx);}
+    auto const operator*() const {return proxy<Resource, lock_t>(ptr.get(), *mtx);}
+};
+
+template<
+    typename Resource,
+    typename mutex_t,
+    typename lock_t>
+class thread_safe<Resource, mutex_t, lock_t, true>
+{    
+    Resource res;                  // the underlying
+    std::shared_ptr<mutex_t> mtx;  // the protection
+        
+    template<
+    	typename ResourceT,
+        typename requested_lock_t>
+    class proxy
+    	: private boost::operators<proxy<ResourceT, requested_lock_t>>
     {
         ResourceT * const ptr{nullptr};
         requested_lock_t lock {};
@@ -197,26 +254,37 @@ class thread_safe
         auto operator->() { return ptr->operator->(); }
         auto const operator->() const { return ptr->operator->(); }
 
+		auto& operator*() { return ptr->operator*(); }
+        auto const& operator*() const { return ptr->operator*(); }
+        
         operator ResourceT&() { return ptr->operator*(); }
         operator ResourceT const&() const { return ptr->operator*(); }      
     };
 
-
 public:
 
-    template <typename... Args>
+    template <
+        typename... Args>
     thread_safe(Args&&... args)
-    : ptr(std::make_unique<Resource>(std::forward<Args>(args)...)), mtx(std::make_unique<mutex_t>()) {}
+    : res(std::forward<Args>(args)...), mtx(std::make_shared<mutex_t>()) {}
+    
+    // provide copy semantics
+    // if a thread_safe object is created via copy semantics,
+    // the copy shares the same underlying and the same associated protection
+    // so, in effect, there could be several thread_safe copies of an underlying
+    // in different threads, and they could access the underlying in a thread safe manner
+    thread_safe(thread_safe const& source) = default;
+    thread_safe& operator=(thread_safe const&) = default;
+    
+    void lock() { mtx->lock(); }
+	bool try_lock() { return mtx->try_lock(); }
+    void unlock() { mtx->unlock(); }
 
-    void lock() {mtx->lock();}
-    void unlock() {mtx->unlock();}
-    auto try_lock() {return mtx->try_lock();}
+    auto operator->() {return proxy<Resource, lock_t>(std::addressof(res), *mtx);}
+    auto const operator->() const {return proxy<Resource, lock_t>(std::addressof(res), *mtx);}
 
-    auto operator->() {return proxy<Resource, lock_t>(ptr.get(), *mtx);}
-    auto const operator->() const {return proxy<Resource, lock_t>(ptr.get(), *mtx);}
-
-    auto operator*() {return proxy<Resource, lock_t>(ptr.get(), *mtx);}
-    auto const operator*() const {return proxy<Resource, lock_t>(ptr.get(), *mtx);}
+    auto operator*() {return proxy<Resource, lock_t>(std::addressof(res), *mtx);}
+    auto const operator*() const {return proxy<Resource, lock_t>(std::addressof(res), *mtx);}
 };
 
 struct Foo
@@ -225,17 +293,17 @@ struct Foo
 
     void doSomething1() 
     {
-        std::cout << "Foo::doSomething1()\n";
+    	std::cout << "Foo::doSomething1()\n";
     }
     
     void doSomething2() 
     {
-        std::cout << "Foo::doSomething2()\n";
+    	std::cout << "Foo::doSomething2()\n";
     }
     
     void doSomething3() 
     {
-        std::cout << "Foo::doSomething3()\n";
+    	std::cout << "Foo::doSomething3()\n";
     }
    
     int i{42};
@@ -383,9 +451,7 @@ int main()
         std::cout << std::boolalpha << (*safeStr1 > *safeStr2) << '\n';
         std::cout << std::boolalpha << (*safeStr1 != *safeStr2) << '\n';
     }
-    
-    safeSP->doSomething1();
-    
+        
     return 0;
 }
 
@@ -404,5 +470,4 @@ a
 2
 false
 true
-Foo::doSomething1()
 */
