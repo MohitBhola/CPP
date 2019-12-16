@@ -501,7 +501,7 @@ int main()
     std::shared_ptr<int> sp(new int(9999));
     
     // ERROR
-    // cannot create threa_safe objects from lvalues of wrapper types
+    // cannot create thread_safe objects from lvalues of wrapper types
     //thread_safe_ptr<std::shared_ptr<int>> ts_sp{sp}; 
     
     // OK
