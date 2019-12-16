@@ -209,7 +209,7 @@ public:
     // if a thread_safe_ptr object is created via copy semantics,
     // the copy shares the same underlying and the same associated protection
     // so, in effect, there could be several thread_safe_ptr copies of an underlying
-    // in different threads, and they could access the underlying in a thread safe manner
+    // in different threads, and they could access the *same* underlying in a thread safe manner
     thread_safe_ptr(thread_safe_ptr const& source) = default;
     thread_safe_ptr& operator=(thread_safe_ptr const&) = default;
 
@@ -217,6 +217,9 @@ public:
     thread_safe_ptr(thread_safe_ptr const&&) = delete;
     thread_safe_ptr& operator=(thread_safe_ptr&&) = delete;
     
+    // implement the *BasicLockable* interface
+    // enables thread_safe_ptr objects to be used in the std::lock(...) API
+    // to acquire a lock on them (to provide transactionable semantics) without risking a deadlock
     void lock() { mtx->lock(); }
     bool try_lock() { return mtx->try_lock(); }
     void unlock() { mtx->unlock(); }
@@ -228,13 +231,14 @@ public:
     auto const operator*() const {return proxy<Resource, lock_t>(ptr.get(), *mtx);}
 };
 
+// thread_safe_ptr specialized for *wrapper* types
 template<
     typename Resource,
     typename mutex_t,
     typename lock_t>
 class thread_safe_ptr<Resource, mutex_t, lock_t, true>
 {    
-    Resource res;                  // the underlying
+    Resource res;                  // the underlying (note direct aggregation)
     std::shared_ptr<mutex_t> mtx;  // the protection
         
     template<
@@ -276,8 +280,7 @@ public:
     template<
         typename T,
         typename... Args,
-        typename = std::enable_if_t<!(std::is_lvalue_reference<T>::value &&
-                                        std::is_same<Resource, std::decay_t<T>>::value)>>
+        typename = std::enable_if_t<!(std::is_lvalue_reference<T>::value && std::is_same<Resource, std::decay_t<T>>::value)>>
     thread_safe_ptr(T&& t, Args&&... args)
     : res(std::forward<T>(t), std::forward<Args>(args)...), mtx(std::make_shared<mutex_t>()) {}
     
@@ -285,10 +288,13 @@ public:
     // if a thread_safe_ptr object is created via copy semantics,
     // the copy shares the same underlying and the same associated protection
     // so, in effect, there could be several thread_safe_ptr copies of an underlying
-    // in different threads, and they could access the underlying in a thread safe manner
+    // in different threads, and they could access the *same* underlying in a thread safe manner
     thread_safe_ptr(thread_safe_ptr const& source) = default;
     thread_safe_ptr& operator=(thread_safe_ptr const&) = default;
     
+    // implement the *BasicLockable* interface
+    // enables thread_safe_ptr objects to be used in the std::lock(...) API
+    // to acquire a lock on them (to provide transactionable semantics) without risking a deadlock
     void lock() { mtx->lock(); }
     bool try_lock() { return mtx->try_lock(); }
     void unlock() { mtx->unlock(); }
@@ -338,7 +344,7 @@ thread_safe_ptr<std::map<int, int>> safeMap_copy{};
 thread_safe_ptr<std::string> safeStr1{"abc"};
 thread_safe_ptr<std::string> safeStr2{"xyz"};
 
-// works with library *wrapper* types (that provide indirection) too!
+// works with *wrapper* types (that provide indirection) too!
 thread_safe_ptr<std::shared_ptr<Foo>> safeSP{std::make_shared<Foo>()};
 
 void f1()
