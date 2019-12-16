@@ -5,6 +5,8 @@
 #include <thread>
 #include <boost/operators.hpp>
 
+// Author: @mbhola
+
 template <typename...>
 using VoidT = void;
 
@@ -29,7 +31,7 @@ class thread_safe
 	
 	 A thread_safe object *owns* an underlying object. There could be 2 types of underlyings:
 	
-	 1. A normal, regular class that isn't providing wrapper semantics That is, something that doesn't has an underlying of its own.
+	 1. A normal, regular class that isn't providing wrapper semantics. That is, something that doesn't has an underlying of its own.
 	    
 	    For such underlyings, a thread_safe object shall aggregate a shared_ptr to the underlying. As such, each thread_safe object shall 
 	    *always* have an underlying, and clients need not check them for NULL prior to dereferencing. 
@@ -42,30 +44,36 @@ class thread_safe
 		necessitate the client code to first check for NULL prior to dereferencing. This would lead to clumsy/bloated usage.
 		  
 		As is, every thread_safe object shall *always* have a shared_ptr to the *same* underlying, and thus clients can freely 
-		dereference them in a thread-safe manner. There might be copies floating around, but each such copy shall allow for thread-safe access to the 
-		*same * underlying.
+		dereference them in a thread-safe manner. There might be copies floating around, but each such copy shall allow 
+		for thread-safe access to the *same * underlying.
 	
 	 2. A wrapper, such as a shared_ptr<T>, or an IRef. That is, something that has an underlying of its own, and could be detected
 	    at compile time via the availability of an overloaded indirection operator (operator->()).
 	    
-	    As an aside, note that as per classic C++ language rules, the result of an indirection should either result in a raw pointer, or in an object
-	    of a class that itself overloads the indirection operator. The process continues until the compiler arrives at a raw pointer. If not,
-	    the compile emits an error.
+	    As an aside, note that as per classic C++ language rules, the result of an indirection should either result in a raw pointer, 
+	    or should result in an object of a class that itself overloads the indirection operator. The process continues until the compiler 
+	    arrives at a raw pointer. If not, the compile emits an error.
 	    
 		For such *special* underlyings, the thread_safe object shall *directly* aggregate them. And shall provide special indirection 
 		to forward to the (real) underlying of the underlying. 
 		
-		As for the normal case (# 1 above), each thread_safe object shall always have a wrapper that points to the *same* underlying. 
-		Again, copies could be made, but each such copy shall have a wrapper that points to the *same* underlying, and would provide thread-safe
-		access to the *same* underlying in a thread-safe manner.
+		Just like for the normal case (# 1 above), each thread_safe object shall always have a wrapper that points to the *same* 
+		*real* underlying. Again, copies could be made, but each such copy shall have a wrapper that points to the *same* 
+		*real* underlying, and would provide thread-safe access to the *same* *real* underlying in a thread-safe manner.
 		
 		[SUBTLE]
-		The ownership group needs to be a closed one. That is, there shouldn't be a *naked* wrapper anywhere else that points to the *same*
-		underlying as pointed to by a group of copy of thread_safe objects. 
 		
-		Translation: Disallow construction of thread_safe objects to wrapper underlyings via lvalues to such underlyings. RValues are OK, though.
-		We'll move them in to create a source thread_safe object, and any subsequent copies of that thread_safe object shall point to the *same* 
-		underlying, and would allow for thread-safe access to that *same* underlying.
+		The ownership group needs to be a closed one. That is, there shouldn't be a *naked* wrapper anywhere else that points 
+		to the *same* *real* underlying as pointed to by a group of copy of thread_safe objects, else access isn't thread-safe. 
+		
+		[Translation] 
+		
+		Disallow construction of thread_safe objects to wrapper underlyings via lvalues to such underlyings. 
+		Those lvalues would defeat thread-safe access to the real underlying. 
+		Why?
+		Because, access to the *real* *underying* isn't threaf-safe via those lvalues.
+		RValues are OK, though. We'll move them in to create a source thread_safe object, and any subsequent copies 
+		of that thread_safe object shall point to the *same*nunderlying, and would allow for thread-safe access to that *same* underlying.
 		
 	*/
 	    
@@ -260,13 +268,17 @@ class thread_safe<Resource, mutex_t, lock_t, true>
         operator ResourceT&() { return ptr->operator*(); }
         operator ResourceT const&() const { return ptr->operator*(); }      
     };
-
+        
 public:
 
-    template <
-        typename... Args>
-    thread_safe(Args&&... args)
-    : res(std::forward<Args>(args)...), mtx(std::make_shared<mutex_t>()) {}
+    // disallow construction via an lvalue reference to a wrapper
+    template<
+        typename T,
+        typename... Args,
+        typename = std::enable_if_t<!(std::is_lvalue_reference<T>::value &&
+                                        std::is_same<Resource, std::decay_t<T>>::value)>>
+    thread_safe(T&& t, Args&&... args)
+    : res(std::forward<T>(t), std::forward<Args>(args)...), mtx(std::make_shared<mutex_t>()) {}
     
     // provide copy semantics
     // if a thread_safe object is created via copy semantics,
@@ -339,7 +351,6 @@ void f1()
 
     // thread safe transactional semantics
     // thread_safe implements the BasicLockable interface
-
     safeFoo.lock();
     safeFoo->doSomething2();
     safeFoo->doSomething3();
@@ -357,7 +368,6 @@ void f2()
 
     // thread safe transactional semantics
     // thread_safe implements the BasicLockable interface
-    // lock is released at the end of the comma operator
     safeFoo.lock();
     safeFoo->doSomething2();
     safeFoo->doSomething3();
@@ -391,6 +401,18 @@ void f3()
         safeMap.unlock();
         safeMap_copy.unlock();
     }
+    
+    /*
+    Since C++17
+    {
+        std::scoped_lock lock(safeMap, safeMap_copy); // transactional semantics
+
+        if (safeMap_copy->empty())
+        {
+            *safeMap_copy = *safeMap;
+        }
+    }
+    */
 }
 
 void f4()
@@ -406,6 +428,18 @@ void f4()
         safeMap.unlock();
         safeMap_copy.unlock();
     }
+    
+    /*
+    Since C++17
+    {
+        std::scoped_lock lock(safeMap_copy, safeMap); // transactional semantics
+
+        if (safeMap_copy->empty())
+        {
+            *safeMap_copy = *safeMap;
+        }
+    }
+    */
 }
 
 int main()
@@ -450,7 +484,29 @@ int main()
         std::lock(safeStr1, safeStr2);
         std::cout << std::boolalpha << (*safeStr1 > *safeStr2) << '\n';
         std::cout << std::boolalpha << (*safeStr1 != *safeStr2) << '\n';
+        safeStr1.unlock();
+        safeStr2.unlock();
     }
+    
+    /*
+    Since C++17
+    {
+        std::scoped_lock lock(safeStr1, safeStr2);
+        std::cout << std::boolalpha << (*safeStr1 > *safeStr2) << '\n';
+        std::cout << std::boolalpha << (*safeStr1 != *safeStr2) << '\n';
+    }
+    */
+    
+    std::shared_ptr<int> sp(new int(9999));
+    
+    // ERROR
+    // cannot create threa_safe objects from lvalues of wrapper types
+    //thread_safe<std::shared_ptr<int>> ts_sp{sp}; 
+    
+    // OK
+    // can only create thread_safe objects from rvalues of wrapper types
+    thread_safe<std::shared_ptr<int>> ts_sp{std::move(sp)}; 
+    
         
     return 0;
 }
