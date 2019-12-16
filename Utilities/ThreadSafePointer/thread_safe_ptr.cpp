@@ -7,7 +7,8 @@
 
 // Author: @mbhola
 
-template <typename...>
+template<
+    typename...>
 using VoidT = void;
 
 template<
@@ -199,7 +200,7 @@ class thread_safe_ptr
 
 public:
 
-    template <
+    template<
         typename... Args>
     thread_safe_ptr(Args&&... args)
     : ptr(std::make_unique<Resource>(std::forward<Args>(args)...)), mtx(std::make_shared<mutex_t>()) {}
@@ -527,4 +528,3 @@ a
 false
 true
 */
-
