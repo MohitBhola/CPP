@@ -9,14 +9,15 @@
 
 using namespace std;
 
+// storage for the handleID and its associated resource release function
+// MeyersSingleton
 auto& GetHandleReleaseFunctions()
 {
-    // handle/keyID -> resource release function
     static std::unordered_map<uintptr_t, std::function<void()>> handleReleaseFunctions;
     return handleReleaseFunctions;
 }
 
-// detect whether the underlying is a shared_ptr<>, unique_ptr<> etc
+// detect whether the underlying is a shared_ptr<>, unique_ptr<>, IRef etc
 // specifically, we detect whether the underlying resource provides for indirection
 // this information would be leveraged to provide a custom indirection for handles to such types
 // see more comments around this elsewhere
@@ -31,25 +32,28 @@ template <typename T>
 struct EnableIfIndirection<T, VoidT<decltype(std::declval<T>().operator->())>> : std::true_type
 {};
 
-template 
+template
 <
     typename Resource,
     typename mutex_t = std::recursive_mutex,
     typename lock_t  = std::unique_lock<mutex_t>
-> 
+>
 class Handle
-{    
-    // a template parameter at the class scope hides a similarly named template parameter of the class template 
-    // so, using ResourceT
-    template <typename ResourceT>
-    static std::unordered_map<uintptr_t, ResourceT> resources;
-    
-    std::shared_ptr<mutex_t> mMutex {std::make_shared<mutex_t>()};
-    
-    // the surrogate
-    // allows thread safe indirection to the underlying 
-    // also allows implicit conversion to bool to check if the underlying actually exists or not
-    template 
+{
+	// a template parameter at the class scope hides a similarly named template parameter of the class template
+	// so, using ResourceT
+	template <typename ResourceT>
+	static std::unordered_map<uintptr_t, ResourceT> resources;
+	
+	// a mutex isn't copyable or moveable
+	// encapsulating the mutex in a shared_ptr allows us to effectively
+	// capture it in the handle's resource release function
+	std::shared_ptr<mutex_t> mMutex {std::make_shared<mutex_t>()};
+	
+	// the surrogate
+	// allows thread safe indirection to the underlying
+	// also allows implicit conversion to bool to check if the underlying actually exists or not
+    template
     <
         typename ResourceT,
         typename requested_lock_t,
@@ -59,164 +63,198 @@ class Handle
     {
         ResourceT* pUnderlying {nullptr};
         requested_lock_t lock;
+        uintptr_t handleID{};
     
     public:
     
         // by default, the underlying isn't available and thus the lock on the underlying isn't acquired
         proxy() = default;
         
-        // if the underlying is present, acquire the lock on the underlying when the proxy gets constructed
-        proxy(ResourceT* p, mutex_t& mtx)
-        : pUnderlying(p), lock(mtx) {}
+    	// if the underlying is present, acquire the lock on the underlying when the proxy gets constructed
+        proxy(ResourceT* p, mutex_t& mtx, uintptr_t keyID)
+        : pUnderlying(p), lock(mtx), handleID(keyID)
+		{}
         
         proxy(proxy&& rhs)
-        : pUnderlying(std::move(rhs.pUnderlying)), lock(std::move(rhs.lock)) {}
+        : pUnderlying(std::move(rhs.pUnderlying)), lock(std::move(rhs.lock)), handleID(std::move(rhs.handleID)) {}
         
         // implicitly release the lock when the proxy gets destroyed
-        ~proxy() noexcept = default;
+		~proxy() noexcept = default;
         
         operator bool() const { return static_cast<bool>(pUnderlying); }
         
         // for underlying types that support indirection (that is, who are wrappers themselves), reach out to their underlying
         // why do this?
         // to provide for a natural, intuitive syntax for the client code
-        // for example, to allow for mHandle->DoSomething() even if the underlying type is an IRef, 
+        // for example, to allow for mHandle->DoSomething() even if the underlying type is an IRef,
         // whose underlying type is some class Foo that provides a public API DoSomething()
-        auto* operator->() { cout << "HERE1" << '\n'; return pUnderlying->operator->(); }
-        auto const* operator->() const { cout << "HERE2" << '\n'; return pUnderlying->operator->(); }
+        auto* operator->() { return pUnderlying->operator->(); }
+        auto const* operator->() const { return pUnderlying->operator->(); }
+        
+        ResourceT& operator*() { return *pUnderlying; }
+        ResourceT const& operator*() const { return *pUnderlying; }
     };
     
     // the surrogate specialized for *normal* underlying types
     // that is, regular types that aren't wrappers
-    template 
+    template
     <
         typename ResourceT,
         typename requested_lock_t
     >
     class proxy<ResourceT, requested_lock_t, false>
     {
-        ResourceT* pUnderlying {nullptr};
+        ResourceT* pUnderlying{nullptr};
         requested_lock_t lock;
+        uintptr_t handleID{};
     
     public:
     
-        // by default, the underlying isn't available and thus the lock on the underlying isn't acquired
+    	// by default, the underlying isn't available and thus the lock on the underlying isn't acquired
         proxy() = default;
         
-        // if the underlying is present, acquire the lock on the underlying when the proxy gets constructed
-        proxy(ResourceT* p, mutex_t& mtx)
-        : pUnderlying(p), lock(mtx) {}
+    	// if the underlying is present, acquire the lock on the underlying when the proxy gets constructed
+        proxy(ResourceT* p, mutex_t& mtx, uintptr_t keyID)
+        : pUnderlying(p), lock(mtx), handleID(keyID)
+        {}
         
         proxy(proxy&& rhs)
-        : pUnderlying(std::move(rhs.pUnderlying)), lock(std::move(rhs.lock)) {}
+        : pUnderlying(std::move(rhs.pUnderlying)), lock(std::move(rhs.lock)), handleID(std::move(rhs.handleID)) {}
         
         // implicitly release the lock when the proxy gets destroyed
-        ~proxy() noexcept = default;
+		~proxy() noexcept = default;
         
         operator bool() const { return static_cast<bool>(pUnderlying); }
         
         // indirection is simpler for *normal* types that aren't wrappers
         // note that we just return the raw pointer to the underlying
-        ResourceT* operator->() { cout << "HERE3" << '\n'; return pUnderlying; }
-        ResourceT const* operator->() const { cout << "HERE4" << '\n'; return pUnderlying; }
+        ResourceT* operator->() { return pUnderlying; }
+        ResourceT const* operator->() const { return pUnderlying; }
+        
+        ResourceT& operator*() { return *pUnderlying; }
+        ResourceT const& operator*() const { return *pUnderlying; }
     };
     
     template <typename... ArgumentsToConstructResource>
-    std::enable_if_t<(sizeof...(ArgumentsToConstructResource) > 0)> 
-    insertUnderlying(lock_t& lock, ArgumentsToConstructResource&&... argumentsToConstructResource) 
-    {
-        static auto keyID = reinterpret_cast<uintptr_t>(this);
-        
-        // the handle might already be *loaded*
-        // in that case, the client might be trying to *re-load* the handle
-        // so, remove the existing underlying first
-        removeUnderlying(lock);
-        
-        // now insert the desired underlying (via perfect forwarding)
-        // the underlying gets constructed *in-place* within the static storage
-        resources<Resource>.emplace(std::piecewise_construct, std::forward_as_tuple(keyID), std::forward_as_tuple(argumentsToConstructResource...));
-        
-        // register the handle release function that would get invoked during purge
-        GetHandleReleaseFunctions().insert(std::make_pair(keyID, [=]()
-        {
-            std::lock_guard<std::recursive_mutex> guard(*mMutex);
-                
-            // ensure that the handle's underlying still exists in the static storage
-            // this check *feels* redundant, but nevertheless is safe
-            if (resources<Resource>.find(keyID) != resources<Resource>.end()) 
-            {
-                cout << "handle release function 1.1 " << '\n';
-                
-                // wiping out the handle's entry from the static storage is enough to destroy it
-                (void)resources<Resource>.erase(keyID);
-            }
-        }));
-    }
-    
-    void removeUnderlying(lock_t&)
-    {
-        static auto keyID = reinterpret_cast<uintptr_t>(this);
-        
-        auto iter = GetHandleReleaseFunctions().find(keyID); 
-        if (iter != std::end(GetHandleReleaseFunctions()))
-        {
-            auto const& handleReleaseCallable = iter->second;
-            
-            // invoke the handle's release function
-            // this would wipe out the handle's entry from the static storage
-            handleReleaseCallable();
-            (void)GetHandleReleaseFunctions().erase(iter);
-        }
-        
-        // redundant, but nevertheless safe
-        // ensure that handle's entry has indeed been wiped out from the static storage
-        if (resources<Resource>.find(keyID) != resources<Resource>.end())
-        {
-             (void)resources<Resource>.erase(keyID);
-        }
-    }
-    
+	std::enable_if_t<(sizeof...(ArgumentsToConstructResource) > 0)>
+	insertUnderlying(lock_t& lock, ArgumentsToConstructResource&&... argumentsToConstructResource)
+	{
+		auto keyID = reinterpret_cast<uintptr_t>(this);
+		
+		// the handle might already be *loaded*
+		// in that case, the client might be trying to *re-load* the handle
+		// so, remove the existing underlying first
+		removeUnderlying(lock);
+		
+		// now insert the desired underlying (via perfect forwarding)
+		// the underlying gets constructed *in-place* within the static storage
+		resources<Resource>.emplace(std::piecewise_construct, std::forward_as_tuple(keyID), std::forward_as_tuple(argumentsToConstructResource...));
+		
+		// register the handle release function that would get invoked during purge
+		GetHandleReleaseFunctions().insert(std::make_pair(keyID, [=]()
+		{
+		    std::lock_guard<std::recursive_mutex> guard(*mMutex);
+		    
+		    // ensure that the handle's underlying still exists in the static storage
+		    // this check *feels* redundant, but nevertheless is safe
+		    if (resources<Resource>.find(keyID) != resources<Resource>.end())
+		    {
+		        // wiping out the handle's entry from the static storage is enough to destroy it
+			    (void)resources<Resource>.erase(keyID);
+		    }
+		}));
+	}
+	
+	void removeUnderlying(lock_t&)
+	{
+	    auto keyID = reinterpret_cast<uintptr_t>(this);
+		
+		auto iter = GetHandleReleaseFunctions().find(keyID);
+		if (iter != std::end(GetHandleReleaseFunctions()))
+	    {
+	        auto const& handleReleaseCallable = iter->second;
+	        
+	        // invoke the handle's release function
+	        // this would wipe out the handle's entry from the static storage
+	        handleReleaseCallable();
+	        (void)GetHandleReleaseFunctions().erase(iter);
+	    }
+	    
+	    // redundant, but nevertheless safe
+	    // ensure that handle's entry has indeed been wiped out from the static storage
+	    if (resources<Resource>.find(keyID) != resources<Resource>.end())
+	    {
+	         (void)resources<Resource>.erase(keyID);
+	    }
+	}
+	
 public:
 
     Handle() = default;
-    
-    // clients must adhere to the following usage:
-    /*
-     * {
-     *     auto fooRef = mFooHandle.lock();
-     *     if (fooRef)
-     *     {
-     *         fooRef->DoSomething();
-     *     }
-     * }
-     */
-    auto lock() 
+	
+	// clients must adhere to the following usage:
+	/*
+	 * {
+	 *     auto fooRef = mFooHandle.lock();
+	 *     if (fooRef)
+	 *     {
+	 *         fooRef->DoSomething();
+	 *     }
+	 * }
+	 */
+    auto lock()
     {
-        static auto keyID = reinterpret_cast<uintptr_t>(this);
+        auto keyID = reinterpret_cast<uintptr_t>(this);
         
-        return (resources<Resource>.find(keyID) == resources<Resource>.end()) ? 
-            proxy<Resource, lock_t>() : 
-            proxy<Resource, lock_t>(std::addressof(resources<Resource>.at(keyID)), *mMutex);
+        return (resources<Resource>.find(keyID) == resources<Resource>.end()) ?
+            proxy<Resource, lock_t>() :
+            proxy<Resource, lock_t>(std::addressof(resources<Resource>.at(keyID)), *mMutex, keyID);
+    }
+    
+    auto const lock() const
+    {
+        auto keyID = reinterpret_cast<uintptr_t>(this);
+        
+        return (resources<Resource>.find(keyID) == resources<Resource>.end()) ?
+            proxy<Resource, lock_t>() :
+            proxy<Resource, lock_t>(std::addressof(resources<Resource>.at(keyID)), *mMutex, keyID);
     }
     
     // clients shall invoke this API to *load* the handle with the underlying
     // they need to pass all the arguments that could be used to invoke an appropriate constructor of the underlying
     // this includes the default constructor, user defined constructors, and copy/move constructors
-    template <typename... ArgumentsToConstructResource> // SD: Be more specific of what Ts is.  
-    std::enable_if_t<(sizeof...(ArgumentsToConstructResource) > 0)> 
-    reset(ArgumentsToConstructResource&&... argumentsToConstructResource) 
-    {
-        lock_t lock(*mMutex);
-        insertUnderlying(lock, argumentsToConstructResource...);
-    }
-    
-    // allow for clients to explicitly free the underlying
-    void reset() 
-    {
-        lock_t lock(*mMutex);
-        removeUnderlying(lock);
-    }
+	template <typename... ArgumentsToConstructResource>
+	std::enable_if_t<(sizeof...(ArgumentsToConstructResource) > 0)>
+	reset(ArgumentsToConstructResource&&... argumentsToConstructResource)
+	{
+	    lock_t lock(*mMutex);
+	    insertUnderlying(lock, argumentsToConstructResource...);
+	}
+	
+	// allow for clients to explicitly free the underlying
+	void reset()
+	{
+	    lock_t lock(*mMutex);
+	    removeUnderlying(lock);
+	}
+	
+	Handle& operator=(Handle const& other)
+	{
+	    if (this == &other)
+	    {
+	        return *this;
+	    }
+	    
+	    lock_t lock(*mMutex);
+	    reset(*(other.lock()));
+	    
+	    return *this;
+	}
 };
+
+template <typename Resource, typename mutex_t, typename lock_t>
+template <typename ResourceT>
+std::unordered_map<uintptr_t, ResourceT> Handle<Resource, mutex_t, lock_t>::resources;
 
 // specialized for pointers
 template 
@@ -262,20 +300,18 @@ class Handle<Resource*, mutex_t, lock_t>
         
         operator bool() const { return static_cast<bool>(pUnderlying); }
         
-        // for underlying types that support indirection (that is, who are wrappers themselves), reach out to their underlying
-        // why do this?
-        // to provide for a natural, intuitive syntax for the client code
-        // for example, to allow for mHandle->DoSomething() even if the underlying type is an IRef, 
-        // whose underlying type is some class Foo that provides a public API DoSomething()
         auto* operator->() { cout << "HERE5" << '\n'; return pUnderlying; }
         auto const* operator->() const { cout << "HERE6" << '\n'; return pUnderlying; }
+        
+        ResourceT& operator*() { cout << "HERE5" << '\n'; return *pUnderlying; }
+        ResourceT const& operator*() const { cout << "HERE6" << '\n'; return *pUnderlying; }
     };
     
     template <typename... ArgumentsToConstructResource>
     std::enable_if_t<(sizeof...(ArgumentsToConstructResource) > 0)> 
     insertUnderlying(lock_t& lock, ArgumentsToConstructResource&&... argumentsToConstructResource) 
     {
-        static auto keyID = reinterpret_cast<uintptr_t>(this);
+        auto keyID = reinterpret_cast<uintptr_t>(this);
         
         // the handle might already be *loaded*
         // in that case, the client might be trying to *re-load* the handle
@@ -307,7 +343,7 @@ class Handle<Resource*, mutex_t, lock_t>
     
     void removeUnderlying(lock_t&)
     {
-        static auto keyID = reinterpret_cast<uintptr_t>(this);
+        auto keyID = reinterpret_cast<uintptr_t>(this);
         
         auto iter = GetHandleReleaseFunctions().find(keyID); 
         if (iter != std::end(GetHandleReleaseFunctions()))
@@ -345,7 +381,7 @@ public:
      */
     auto lock() 
     {
-        static auto keyID = reinterpret_cast<uintptr_t>(this);
+        auto keyID = reinterpret_cast<uintptr_t>(this);
         
         return (resourcesToBeDelete<Resource>.find(keyID) == resourcesToBeDelete<Resource>.end()) ? 
             proxy<Resource, lock_t>() : 
@@ -355,7 +391,7 @@ public:
     // clients shall invoke this API to *load* the handle with the underlying
     // they need to pass all the arguments that could be used to invoke an appropriate constructor of the underlying
     // this includes the default constructor, user defined constructors, and copy/move constructors
-    template <typename... ArgumentsToConstructResource> // SD: Be more specific of what Ts is.  
+    template <typename... ArgumentsToConstructResource>
     std::enable_if_t<(sizeof...(ArgumentsToConstructResource) > 0)> 
     reset(ArgumentsToConstructResource&&... argumentsToConstructResource) 
     {
@@ -372,12 +408,8 @@ public:
 };
 
 template <typename Resource, typename mutex_t, typename lock_t>
-template <typename U>
-std::unordered_map<uintptr_t, U> Handle<Resource, mutex_t, lock_t>::resources;
-
-template <typename Resource, typename mutex_t, typename lock_t>
-template <typename U>
-std::unordered_map<uintptr_t, U*> Handle<Resource*, mutex_t, lock_t>::resourcesToBeDelete;
+template <typename ResourceT>
+std::unordered_map<uintptr_t, ResourceT*> Handle<Resource*, mutex_t, lock_t>::resourcesToBeDelete;
 
 struct Foo
 {
@@ -458,6 +490,14 @@ int main()
         {
             fooRef5->print(); 
         }
+        
+        Handle<shared_ptr<Foo>> fooHandle11{};
+        fooHandle11 = fooHandle1;
+        auto fooRef6 = fooHandle11.lock();
+        if (fooRef6)
+        {
+        	fooRef6->print();
+        }
     }
     
     cout << "=========================\n\n";
@@ -537,33 +577,25 @@ int main()
 }
 
 /*
+OUTPUT
 fooHandle1 is indeed NULL
 fooHandle1 is now loaded
-HERE1
 101
-handle release function 1.1 
 Foo dtor
-HERE1
 201
-handle release function 1.1 
 Foo dtor
 fooHandle1 is now indeed NULL
-HERE1
+301
 301
 =========================
 
-HERE3
 1001
-handle release function 1.1 
 Foo dtor
 fooHandle2 is indeed NULL
 fooHandle2 is now loaded
-HERE3
 2001
-handle release function 1.1 
 Foo dtor
 Foo dtor
-HERE3
 3001
 =========================
 
@@ -571,13 +603,14 @@ fooPtrHandle is indeed NULL
 fooPtrHandle is now loaded
 HERE5
 42
-Invoking resource release function for handle: 140726566761984
+Invoking resource release function for handle: 140735949438544
+Foo dtor
+Invoking resource release function for handle: 140735949438480
+Invoking resource release function for handle: 140735949438608
 handle release function 2.1 
 Foo dtor
-Invoking resource release function for handle: 140726566761904
-handle release function 1.1 
-Foo dtor
-Invoking resource release function for handle: 140726566761920
-handle release function 1.1 
+Invoking resource release function for handle: 140735949438496
 Foo dtor
 */
+
+
