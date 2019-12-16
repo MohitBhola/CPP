@@ -270,8 +270,8 @@ class thread_safe_ptr<Resource, mutex_t, lock_t, true>
         auto& operator*() { return ptr->operator*(); }
         auto const& operator*() const { return ptr->operator*(); }
         
-        operator ResourceT&() { return ptr->operator*(); }
-        operator ResourceT const&() const { return ptr->operator*(); }      
+        operator ResourceT&() { return *ptr; }
+        operator ResourceT const&() const { return &ptr; }      
     };
         
 public:
@@ -362,6 +362,15 @@ void f1()
     safeFoo->doSomething2();
     safeFoo->doSomething3();
     safeFoo.unlock();
+    
+    /*
+    Since C++17
+    {
+        std::scoped_lock lock(safeFoo);
+        safeFoo->doSomething2();
+        safeFoo->doSomething3();
+    }    
+    */
 }
 
 void f2()
@@ -379,36 +388,43 @@ void f2()
     safeFoo->doSomething2();
     safeFoo->doSomething3();
     safeFoo.unlock();
+    
+    /*
+    Since C++17
+    {
+        std::scoped_lock lock(safeFoo);
+        safeFoo->doSomething2();
+        safeFoo->doSomething3();
+    }    
+    */
 }
 
 // either f3 or f4 populates safeMap_copy
-// depending on which thread successfully acquires locks on both safeMap and safeMap_copy first
+// depending on which thread successfully acquires locks on *both* safeMap and safeMap_copy first
 
 // thread_safe_ptr<std::map> allows for assignment
 // since the underlying std::map supports the same
 
 // [SUBTLE]
-// we need to acquire a lock on both underlying shared resources (std::map)
-// but different threads may try to acquire those locks
-// in different orders which is a classic recipe for a deadlock
+// we need to acquire a lock on the underlying shared resources (std::map) of both safeMap and safeMap_copy
+// but different threads may try to acquire those locks in different orders which is a classic recipe for a deadlock!
 // for example, note that f3() and f4() below acquire locks in different orders
 // we need to acquire these locks atomically
 // thankfully, std::lock() allows just that!
 
 void f3()
 {
-    {
-        std::lock(safeMap, safeMap_copy); // transactional semantics
-
-        if (safeMap_copy->empty())
-        {
-            *safeMap_copy = *safeMap;
-        }
-
-        safeMap.unlock();
-        safeMap_copy.unlock();
-    }
     
+    std::lock(safeMap, safeMap_copy); // transactional semantics
+
+    if (safeMap_copy->empty())
+    {
+        *safeMap_copy = *safeMap;
+    }
+
+    safeMap.unlock();
+    safeMap_copy.unlock();
+        
     /*
     Since C++17
     {
@@ -423,19 +439,17 @@ void f3()
 }
 
 void f4()
-{
+{    
+    std::lock(safeMap_copy, safeMap); // transactional semantics; note different order of lock acquisition than in f3()
+
+    if (safeMap_copy->empty())
     {
-        std::lock(safeMap_copy, safeMap); // transactional semantics; note different order of lock acquisition than in f3()
-
-        if (safeMap_copy->empty())
-        {
-            *safeMap_copy = *safeMap;
-        }
-
-        safeMap.unlock();
-        safeMap_copy.unlock();
+        *safeMap_copy = *safeMap;
     }
-    
+
+    safeMap.unlock();
+    safeMap_copy.unlock();
+   
     /*
     Since C++17
     {
@@ -458,11 +472,10 @@ int main()
     t2.join();
 
     // thread_safe_ptr<int> allows access to the underlying shared resource (int) via dereferencing
-    // this is guaranteed to print 126 since increments happen
-    // atomically in threads t1 and t2
+    // this is guaranteed to print 126 since increments happen in a thread safe manner in threads t1 and t2
     std::cout << *safeInt << '\n';
 
-    // thread_safe_ptr<Foo> allows for transparent indirection for member access
+    // thread_safe_ptr<Foo> allows for transparent indirection for (public) member access
     std::cout << safeFoo->c << '\n';
 
     // thread_safe_ptr<std::map> allows for subscripting as the underlying
@@ -512,17 +525,22 @@ int main()
     
     // OK
     // can only create thread_safe_ptr objects from rvalues of wrapper types
-    thread_safe_ptr<std::shared_ptr<int>> ts_sp{std::move(sp)}; 
     
-        
+    thread_safe_ptr<std::shared_ptr<int>> ts_sp1{std::move(sp)}; 
+    std::cout << **ts_sp1 << '\n';
+    
+    thread_safe_ptr<std::shared_ptr<Foo>> ts_sp2{std::make_shared<Foo>()}; 
+    ts_sp2->doSomething1();
+    
     return 0;
 }
 
 /*
-Foo::doSomething1()
+OUTPUT
+Foo::doSomething2()
 Foo::doSomething2()
 Foo::doSomething3()
-Foo::doSomething2()
+Foo::doSomething1()
 Foo::doSomething2()
 Foo::doSomething3()
 126
@@ -533,4 +551,6 @@ a
 2
 false
 true
+9999
+Foo::doSomething1()
 */
