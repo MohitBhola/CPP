@@ -97,8 +97,8 @@ class thread_safe_ptr
         requested_lock_t lock{};
 
     public:
-		
-		// when the proxy object is created, acquire a lock on the underlying *explicitly*
+        
+        // when the proxy object is created, acquire a lock on the underlying *explicitly*
         proxy(ResourceT * const p, mutex_t& mtx)
         : ptr(p), lock(mtx) {}
 
@@ -108,19 +108,19 @@ class thread_safe_ptr
         // when the proxy object is destroyed, release the lock on the underlying *implicitly*
         ~proxy() noexcept = default;
 
- 		// overload the indirection operator to reach out to the underlying 
+        // overload the indirection operator to reach out to the underlying 
         ResourceT* operator->() { return ptr; }
         ResourceT const* operator->() const { return ptr; }
 
- 		// overload the access operator to reach out to the underlying        
+        // overload the access operator to reach out to the underlying        
         ResourceT& operator*() { return *ptr; }
         ResourceT const& operator*() const { return *ptr; }
     };
 
 public:
 
-	// default constructing a thread_safe_ptr assumes that it is possible to default construct the underlying
-	thread_safe_ptr()
+    // default constructing a thread_safe_ptr assumes that it is possible to default construct the underlying
+    thread_safe_ptr()
     : ptr(std::make_unique<Resource>()), mtx(std::make_shared<mutex_t>()) {}
 
     // universal constructor
@@ -178,8 +178,8 @@ class thread_safe_ptr<Resource, mutex_t, lock_t, true>
         requested_lock_t lock {};
 
     public:
-		
-		// when the proxy object is created, acquire a lock on the underlying *explicitly*
+        
+        // when the proxy object is created, acquire a lock on the underlying *explicitly*
         proxy(ResourceT * const p, mutex_t& mtx)
         : ptr(p), lock(mtx) {}
 
@@ -197,20 +197,20 @@ class thread_safe_ptr<Resource, mutex_t, lock_t, true>
             return (ptr && *ptr) ? true : false;
         }
 
-		// (special) overloaded indirection to the wrapper underlying's underlying
-		// this let's the client code to access the public interface of the wrapper underlying's underlying 
+        // (special) overloaded indirection to the wrapper underlying's underlying
+        // this let's the client code to access the public interface of the wrapper underlying's underlying 
         auto* operator->() { return ptr->operator->(); }
         auto const* operator->() const { return ptr->operator->(); }
 
-		// overload the access operator to reach out to the *wrapper* underlying        
-		// this lets the clients to access the public interface of the wrapper underlying itself
+        // overload the access operator to reach out to the *wrapper* underlying        
+        // this lets the clients to access the public interface of the wrapper underlying itself
         ResourceT& operator*() { return *ptr; }
         ResourceT const& operator*() const { return *ptr; }
     };
         
 public:
 
-	// universal constructor
+    // universal constructor
     // intended to invoke a viable ctor of the underlying wrapper
     // disabled for construction via an lvalue reference to the underlying wrapper
     //
@@ -365,7 +365,7 @@ void f3()
 
     if (safeMap_copy->empty())
     {
-    	// note double dereference to access the underlying by reference
+        // note double dereference to access the underlying by reference
         **safeMap_copy = **safeMap;
     }
 
@@ -607,8 +607,8 @@ class thread_safe_ptr
         requested_lock_t lock{};
 
     public:
-		
-		// when the proxy object is created, acquire a lock on the underlying *explicitly*
+        
+        // when the proxy object is created, acquire a lock on the underlying *explicitly*
         proxy(ResourceT * const p, mutex_t& mtx)
         : ptr(p), lock(mtx) {}
 
@@ -618,19 +618,19 @@ class thread_safe_ptr
         // when the proxy object is destroyed, release the lock on the underlying *implicitly*
         ~proxy() noexcept = default;
 
- 		// overload the indirection operator to reach out to the underlying 
+        // overload the indirection operator to reach out to the underlying 
         ResourceT* operator->() { return ptr; }
         ResourceT const* operator->() const { return ptr; }
 
- 		// overload the access operator to reach out to the underlying        
+        // overload the access operator to reach out to the underlying        
         ResourceT& operator*() { return *ptr; }
         ResourceT const& operator*() const { return *ptr; }
     };
 
 public:
 
-	// default constructing a thread_safe_ptr assumes that it is possible to default construct the underlying
-	thread_safe_ptr()
+    // default constructing a thread_safe_ptr assumes that it is possible to default construct the underlying
+    thread_safe_ptr()
     : ptr(std::make_unique<Resource>()), mtx(std::make_shared<mutex_t>()) {}
 
     // universal constructor
@@ -688,8 +688,8 @@ class thread_safe_ptr<Resource, mutex_t, lock_t, true>
         requested_lock_t lock {};
 
     public:
-		
-		// when the proxy object is created, acquire a lock on the underlying *explicitly*
+        
+        // when the proxy object is created, acquire a lock on the underlying *explicitly*
         proxy(ResourceT * const p, mutex_t& mtx)
         : ptr(p), lock(mtx) {}
 
@@ -707,20 +707,20 @@ class thread_safe_ptr<Resource, mutex_t, lock_t, true>
             return (ptr && *ptr) ? true : false;
         }
 
-		// (special) overloaded indirection to the wrapper underlying's underlying
-		// this let's the client code to access the public interface of the wrapper underlying's underlying 
+        // (special) overloaded indirection to the wrapper underlying's underlying
+        // this let's the client code to access the public interface of the wrapper underlying's underlying 
         auto* operator->() { return ptr->operator->(); }
         auto const* operator->() const { return ptr->operator->(); }
 
-		// overload the access operator to reach out to the *wrapper* underlying        
-		// this lets the clients to access the public interface of the wrapper underlying itself
+        // overload the access operator to reach out to the *wrapper* underlying        
+        // this lets the clients to access the public interface of the wrapper underlying itself
         ResourceT& operator*() { return *ptr; }
         ResourceT const& operator*() const { return *ptr; }
     };
         
 public:
 
-	// universal constructor
+    // universal constructor
     // intended to invoke a viable ctor of the underlying wrapper
     // disabled for construction via an lvalue reference to the underlying wrapper
     //
@@ -875,7 +875,7 @@ void f3()
 
     if (safeMap_copy->empty())
     {
-    	// note double dereference to access the underlying by reference
+        // note double dereference to access the underlying by reference
         **safeMap_copy = **safeMap;
     }
 
