@@ -151,8 +151,11 @@ public:
     bool try_lock() { return mtx->try_lock(); }
     void unlock() { mtx->unlock(); }
 
-    auto operator->() {return proxy<Resource, lock_t>(ptr.get(), *mtx);}
-    auto const operator->() const {return proxy<Resource, lock_t>(ptr.get(), *mtx);}
+    //auto operator->() {return proxy<Resource, lock_t>(ptr.get(), *mtx);}
+    //auto const operator->() const {return proxy<Resource, lock_t>(ptr.get(), *mtx);}
+    
+    auto Lock() {return proxy<Resource, lock_t>(ptr.get(), *mtx);}
+    auto const Lock() const {return proxy<Resource, lock_t>(ptr.get(), *mtx);}
 
     auto operator*() {return proxy<Resource, lock_t>(ptr.get(), *mtx);}
     auto const operator*() const {return proxy<Resource, lock_t>(ptr.get(), *mtx);}
@@ -239,15 +242,15 @@ public:
     void lock() { mtx->lock(); }
     bool try_lock() { return mtx->try_lock(); }
     void unlock() { mtx->unlock(); }
-
-    auto operator->() {return proxy<Resource, lock_t>(std::addressof(res), *mtx);}
-    auto const operator->() const {return proxy<Resource, lock_t>(std::addressof(res), *mtx);}
-
-    auto operator*() {return proxy<Resource, lock_t>(std::addressof(res), *mtx);}
-    auto const operator*() const {return proxy<Resource, lock_t>(std::addressof(res), *mtx);}
     
-    auto get() {return proxy<Resource, lock_t>(std::addressof(res), *mtx);}
-    auto const get() const {return proxy<Resource, lock_t>(std::addressof(res), *mtx);}
+    auto Lock() {return proxy<Resource, lock_t>(std::addressof(res), *mtx);}
+    auto const Lock() const {return proxy<Resource, lock_t>(std::addressof(res), *mtx);}
+
+    //auto operator->() {return proxy<Resource, lock_t>(std::addressof(res), *mtx);}
+    //auto const operator->() const {return proxy<Resource, lock_t>(std::addressof(res), *mtx);}
+
+    //auto operator*() {return proxy<Resource, lock_t>(std::addressof(res), *mtx);}
+    //auto const operator*() const {return proxy<Resource, lock_t>(std::addressof(res), *mtx);}
 };
 
 struct Foo
@@ -296,53 +299,47 @@ void f1()
     // thread_safe_ptr<int> supports increment-assignment operator
     // since the underlying int supports the same
     // note double dereference to access the underlying by reference
-    **safeInt += 42;
+    {
+        auto intRef = safeInt.Lock();
+        *intRef += 42;
+    }
 
     // thread safe singular operation
     // indirection is *natural*; just use operator-> on the thread_safe_ptr, and it redirects to the underlying
-    safeFoo->doSomething1();
-
-    // thread safe transactional semantics
-    // thread_safe_ptr implements the BasicLockable interface
-    safeFoo.lock();
-    safeFoo->doSomething2();
-    safeFoo->doSomething3();
-    safeFoo.unlock();
-    
-    /*
-    Since C++17
     {
-        std::scoped_lock lock(safeFoo);
-        safeFoo->doSomething2();
-        safeFoo->doSomething3();
-    }    
-    */
+        auto fooRef = safeFoo.Lock();
+        fooRef->doSomething1();
+    }
+    
+    // thread safe transactional semantics
+    {
+        auto fooRef = safeFoo.Lock();
+        fooRef->doSomething2();
+        fooRef->doSomething3();
+    }
 }
 
 void f2()
 {
     // thread_safe_ptr<int> supports increment-assignment operator
     // since the underlying int supports the same
-    **safeInt += 42;
+    {
+        auto intRef = safeInt.Lock();
+        *intRef += 42;
+    }
 
     // thread safe singular operation
-    safeFoo->doSomething2();
+    {
+        auto fooRef = safeFoo.Lock();
+        fooRef->doSomething2();
+    }
 
     // thread safe transactional semantics
-    // thread_safe_ptr implements the BasicLockable interface
-    safeFoo.lock();
-    safeFoo->doSomething2();
-    safeFoo->doSomething3();
-    safeFoo.unlock();
-    
-    /*
-    Since C++17
     {
-        std::scoped_lock lock(safeFoo);
-        safeFoo->doSomething2();
-        safeFoo->doSomething3();
-    }    
-    */
+        auto fooRef = safeFoo.Lock();
+        fooRef->doSomething2();
+        fooRef->doSomething3();
+    }
 }
 
 // either f3 or f4 populates safeMap_copy
@@ -360,54 +357,45 @@ void f2()
 
 void f3()
 {
-    
-    std::lock(safeMap, safeMap_copy); // transactional semantics
+    // avoid risking a deadlock while acquiring multiple locks by leveraging the std::lock(...) API (since C++11)
+    // since a thread_safe_ptr implements the BasicLockable interface, they could be used with this API!
+    std::lock(safeMap, safeMap_copy);
 
-    if (safeMap_copy->empty())
     {
-        // note double dereference to access the underlying by reference
-        **safeMap_copy = **safeMap;
+        auto mapRef = safeMap.Lock();
+        auto mapCopyRef = safeMap_copy.Lock();
+        
+        if (mapCopyRef->empty())
+        {
+            *mapCopyRef = *mapRef;
+        }   
     }
-
+    
     safeMap.unlock();
     safeMap_copy.unlock();
-        
-    /*
-    Since C++17
-    {
-        std::scoped_lock lock(safeMap, safeMap_copy); // transactional semantics
-
-        if (safeMap_copy->empty())
-        {
-            **safeMap_copy = **safeMap;
-        }
-    }
-    */
 }
 
 void f4()
 {    
-    std::lock(safeMap_copy, safeMap); // transactional semantics; note different order of lock acquisition than in f3()
+    // note different order of arguments to the std::lock(...) API than in f3()
+    // this is the kind of mistake that is too easy to make by having to lock multiple mutexes manually
+    // since thread_safe_ptr objects implement the BasicLockable interface, we avoid this risk altogether
+    // developers just need to follow the rule of thumb that if a CS requires locking multiple thread_safe_ptr objects,
+    // they should do so via std::lock(...) API; the order of argument(s) to this API doesn't matter
+    std::lock(safeMap_copy, safeMap);
 
-    if (safeMap_copy->empty())
     {
-        **safeMap_copy = **safeMap;
+        auto mapRef = safeMap.Lock();
+        auto mapCopyRef = safeMap_copy.Lock();
+        
+        if (mapCopyRef->empty())
+        {
+            *mapCopyRef = *mapRef;
+        }   
     }
-
+    
     safeMap.unlock();
     safeMap_copy.unlock();
-   
-    /*
-    Since C++17
-    {
-        std::scoped_lock lock(safeMap_copy, safeMap); // transactional semantics
-
-        if (safeMap_copy->empty())
-        {
-            **safeMap_copy = **safeMap;
-        }
-    }
-    */
 }
 
 int main()
@@ -420,19 +408,23 @@ int main()
 
     // thread_safe_ptr<int> allows access to the underlying shared resource (int) via dereferencing
     // this is guaranteed to print 126 since increments happen in a thread safe manner in threads t1 and t2
-    std::cout << **safeInt << '\n';
-
+    std::cout << *safeInt.Lock() << '\n';
+    
     // thread_safe_ptr<Foo> allows for transparent indirection for (public) member access
-    std::cout << safeFoo->c << '\n';
+    std::cout << safeFoo.Lock()->c << '\n';
 
     // thread_safe_ptr<std::map> allows for subscripting as the underlying
     // shared resource (a std::map) supports the same
-    (**safeMap)[1] = 1;
-    (**safeMap)[2] = 2;
-
-    std::cout << (**safeMap)[1] << '\n';
-    std::cout << (**safeMap)[2] << '\n';
-
+    {
+        auto mapRef = safeMap.Lock();
+        
+        (*mapRef)[1] = 1;
+        (*mapRef)[2] = 2;    
+        
+        std::cout << (*mapRef)[1] << '\n';
+        std::cout << (*mapRef)[2] << '\n';
+    }
+    
     std::thread t3(f3);
     std::thread t4(f4);
 
@@ -441,28 +433,28 @@ int main()
 
     // safeMap_copy got populated in a thread safe manner
     // in either thread t3 or thread t4
-    std::cout << (**safeMap_copy)[1] << '\n';
-    std::cout << (**safeMap_copy)[2] << '\n';
+    {
+        auto mapCopyRef = safeMap_copy.Lock();
+        
+        std::cout << (*mapCopyRef)[1] << '\n';
+        std::cout << (*mapCopyRef)[2] << '\n';
+    }
 
     // thread_safe_ptr<std::string> allows for comparisons
     // as the underlying shared resource (std::string) supports the same
     // std::lock used here for transactional semantics
     {
         std::lock(safeStr1, safeStr2);
-        std::cout << std::boolalpha << (**safeStr1 > **safeStr2) << '\n';
-        std::cout << std::boolalpha << (**safeStr1 != **safeStr2) << '\n';
+        
+        auto str1Ref = safeStr1.Lock();
+        auto str2Ref = safeStr2.Lock();
+        
+        std::cout << std::boolalpha << (*str1Ref > *str2Ref) << '\n';
+        std::cout << std::boolalpha << (*str1Ref != *str2Ref) << '\n';
+        
         safeStr1.unlock();
         safeStr2.unlock();
     }
-    
-    /*
-    Since C++17
-    {
-        std::scoped_lock lock(safeStr1, safeStr2);
-        std::cout << std::boolalpha << (*safeStr1 > *safeStr2) << '\n';
-        std::cout << std::boolalpha << (*safeStr1 != *safeStr2) << '\n';
-    }
-    */
     
     // sp: a *wrapper* underlying
     std::shared_ptr<int> sp(new int(9999));
@@ -476,31 +468,42 @@ int main()
     thread_safe_ptr<std::shared_ptr<int>> ts_sp1{std::move(sp)};
     
     // NOTE *triple* indirection to access the wrapper underlying's underlying
-    ***ts_sp1 *= 2;
-    std::cout << ***ts_sp1 << '\n';
-    
-    // OK
-    // can create thread_safe_ptr objects from rvalues of wrapper underlyings
-    thread_safe_ptr<std::shared_ptr<Foo>> ts_sp2{std::make_shared<Foo>()}; 
-    
-    // indirection is *natural*; just use operator->() on the thread_safe_ptr, 
-    // and it redirects all the way to the wrapper underlying's underlying
-    ts_sp2->doSomething1();
-    
-    // OK
-    // can create copies of thread_safe_ptrs
-    thread_safe_ptr<std::shared_ptr<int>> ts_sp3{ts_sp1};
-    
-    // NOTE *triple* indirection to access the wrapper underlying's underlying
-    ***ts_sp3 *= 2;   
-    std::cout << ***ts_sp3 << '\n';
-    
-    // NOTE *double* indirection to the wrapper underlying itself
-    (**ts_sp3).reset();
-    
-    if (!*ts_sp3)
     {
-        std::cout << "ts_sp3's underlying is now indeed NULL\n\n";
+        auto sp1Ref = ts_sp1.Lock();
+        **sp1Ref *= 2;
+        std::cout << **sp1Ref << '\n';
+        
+    }
+    
+    {
+        // OK
+        // can create thread_safe_ptr objects from rvalues of wrapper underlyings
+        thread_safe_ptr<std::shared_ptr<Foo>> ts_sp2{std::make_shared<Foo>()}; 
+    
+        // indirection is *natural*; just use operator->() on the thread_safe_ptr, 
+        // and it redirects all the way to the wrapper underlying's underlying
+        auto sp2Ref = ts_sp2.Lock();
+        sp2Ref->doSomething1();
+    }
+    
+    {
+        // OK
+        // can create copies of thread_safe_ptrs
+        thread_safe_ptr<std::shared_ptr<int>> ts_sp3{ts_sp1};
+        
+        auto sp3Ref = ts_sp3.Lock();
+        
+        // NOTE *triple* indirection to access the wrapper underlying's underlying
+        **sp3Ref *= 2;   
+        std::cout << **sp3Ref << '\n';
+        
+        // NOTE *double* indirection to the wrapper underlying itself
+        (*sp3Ref).reset();
+        
+        if (!sp3Ref)
+        {
+            std::cout << "ts_sp3's underlying is now indeed NULL\n\n";
+        }
     }
      
     return 0;
