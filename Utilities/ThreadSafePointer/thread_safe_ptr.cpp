@@ -151,9 +151,6 @@ public:
     bool try_lock() { return mtx->try_lock(); }
     void unlock() { mtx->unlock(); }
 
-    //auto operator->() {return proxy<Resource, lock_t>(ptr.get(), *mtx);}
-    //auto const operator->() const {return proxy<Resource, lock_t>(ptr.get(), *mtx);}
-    
     auto Lock() {return proxy<Resource, lock_t>(ptr.get(), *mtx);}
     auto const Lock() const {return proxy<Resource, lock_t>(ptr.get(), *mtx);}
 
@@ -245,12 +242,6 @@ public:
     
     auto Lock() {return proxy<Resource, lock_t>(std::addressof(res), *mtx);}
     auto const Lock() const {return proxy<Resource, lock_t>(std::addressof(res), *mtx);}
-
-    //auto operator->() {return proxy<Resource, lock_t>(std::addressof(res), *mtx);}
-    //auto const operator->() const {return proxy<Resource, lock_t>(std::addressof(res), *mtx);}
-
-    //auto operator*() {return proxy<Resource, lock_t>(std::addressof(res), *mtx);}
-    //auto const operator*() const {return proxy<Resource, lock_t>(std::addressof(res), *mtx);}
 };
 
 struct Foo
