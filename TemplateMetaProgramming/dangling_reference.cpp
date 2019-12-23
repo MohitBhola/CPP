@@ -21,23 +21,22 @@ template <typename T>
 const T& max (const T& a, const T& b, const T& c)
 {
     // both the calls to max resolve to the overload intended for C_Strings
-    // that is, both the parameters and the return type is a copy of the pointer to a C_String
-    // specifically, the return value is a temporary in the stack frame of this function
-    // 
+    // thus, the parameters and the return type are a pointer to a C_String
+    // note that the return value is a temporary in the stack frame of this function
     // unfortunately, this function returns a reference to such a temporary, and thus leads to a crash!
     return max(max(a,b),c);
 }
 
 int main(int argc, char **argv)
 {
-	const char* s1 = "c";
+    const char* s1 = "c";
     const char* s2 = "b";
     const char* s3 = "a";
     
     auto result = max(s1,s2,s3);
     cout << "Max: " << result << endl;
     
-	return 0;
+    return 0;
 }
 
 /*
