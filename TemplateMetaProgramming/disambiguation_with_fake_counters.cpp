@@ -4,7 +4,7 @@ using namespace std;
 template <int N, int FAKE = 0>
 struct A
 {
-    auto foo()
+    static int foo()
     {
         return N;
     }
@@ -15,7 +15,7 @@ struct A
 template <int N, int FAKE = 0>
 struct B : A<N % 2, FAKE>, B<N / 2, FAKE + 1>
 {
-    auto foo()
+    static int foo()
     {
         return A<N % 2, FAKE>::foo();
     }
@@ -27,7 +27,7 @@ struct B<0, FAKE>
 
 int main()
 {
-    cout << B<9>().foo() << '\n';
+    cout << B<9>::foo() << '\n';
     
     return 0;
 }
