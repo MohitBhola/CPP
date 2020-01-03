@@ -2,7 +2,10 @@
 using namespace std;
 
 template <bool B>
-struct selector
+struct selector;
+
+template <>
+struct selector<true>
 {
     static const bool value = true;
 };
@@ -13,9 +16,11 @@ struct selector<false>
     static const bool value = false;
 };
 
-
 template <bool B, typename T>
-struct static_OR_helper : selector<T::value>
+struct static_OR_helper;
+
+template <typename T>
+struct static_OR_helper<false, T> : selector<T::value>
 {};
 
 template <typename T>
