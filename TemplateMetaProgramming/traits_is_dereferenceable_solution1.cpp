@@ -3,13 +3,11 @@
 #include <type_traits>
 #include <utility>
 
-using no_type = char;
-
 template <std::size_t N>
 struct yes_type
-{
-    char dummy[2];
-};
+{};
+
+using no_type = char;
 
 template <typename T>
 class is_dereferenceable_helper
@@ -41,3 +39,8 @@ int main()
     
     return 0;
 }
+
+/*
+0
+1
+*/
