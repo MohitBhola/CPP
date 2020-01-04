@@ -1,16 +1,6 @@
 #include <iostream>
 using namespace std;
 
-/*
-template <typename T, typename = void_t<>>
-struct IsClass : public false_type
-{};
-
-template <typename T>
-struct IsClass<T, void_t<int T::*>> : public true_type
-{};
-*/
-
 template <typename T>
 class IsClassHelper
 {
@@ -28,6 +18,17 @@ public:
 template <typename T>
 struct IsClass : IsClassHelper<T>::type
 {};
+
+// alternate solution based on SFINAE'ing out partial specialization
+/*
+template <typename T, typename = void_t<>>
+struct IsClass : public false_type
+{};
+
+template <typename T>
+struct IsClass<T, void_t<int T::*>> : public true_type
+{};
+*/
 
 struct Foo
 {};
