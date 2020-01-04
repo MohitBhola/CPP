@@ -3,22 +3,12 @@
 #include <type_traits>
 #include <utility>
 
-template <typename T>
-class is_dereferenceable_helper
-{
-    template <typename U, typename = decltype(*std::declval<U>())>
-    static std::true_type test(U*);
-    
-    template <typename>
-    static std::false_type test(...);
-    
-public:
-
-    using type = decltype(test<T>(nullptr));
-};
+template <typename T, typename = std::void_t<>>
+struct is_dereferenceable : std::false_type
+{};
 
 template <typename T>
-struct is_dereferenceable : is_dereferenceable_helper<T>::type
+struct is_dereferenceable<T, std::void_t<decltype(*std::declval<T>())>> : std::true_type
 {};
 
 int main()
@@ -28,3 +18,8 @@ int main()
     
     return 0;
 }
+
+/*
+0
+1
+*/
