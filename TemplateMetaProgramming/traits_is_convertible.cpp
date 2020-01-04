@@ -10,6 +10,7 @@ struct Base
 struct Derived : Base
 {};
 
+// TODO: add support for array/function/void types as in the alternate solution
 template <typename FROM, typename TO>
 class IsConvertibleHelper
 {
