@@ -12,28 +12,17 @@ struct IsClass<T, void_t<int T::*>> : public true_type
 */
 
 template <typename T>
-struct YES
-{};
-
-using NO = char;
-
-template <typename T>
 class IsClassHelper
 {
-    template <typename U>
-    static YES<decltype(declval<int U::*>())> test(U*);
+    template <typename U, typename = decltype(declval<int U::*>())>
+    static true_type test(U*);
     
     template <typename U>
-    static NO test(...);
-    
-    template <typename U>
-    static true_type cast(YES<U>);
-    
-    static false_type cast(NO);
+    static false_type test(...);
     
 public:
 
-    using type = decltype(cast(test<T>(nullptr)));
+    using type = decltype(test<T>(nullptr));
 };
 
 template <typename T>
