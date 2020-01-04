@@ -21,6 +21,17 @@ template <typename T>
 struct is_dereferenceable : is_dereferenceable_helper<T>::type
 {};
 
+// alternate solution based on SFINAE'ing out partial specialization
+/*
+template <typename T, typename = std::void_t<>>
+struct is_dereferenceable : std::false_type
+{};
+
+template <typename T>
+struct is_dereferenceable<T, std::void_t<decltype(*std::declval<T>())>> : std::true_type
+{};
+*/
+
 int main()
 {
     std::cout << is_dereferenceable<int>::value << '\n';
