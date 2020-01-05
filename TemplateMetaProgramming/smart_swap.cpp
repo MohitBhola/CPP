@@ -22,14 +22,28 @@ struct swap_traits
     
 private:
 
+    // for when T has void T::swap(T&)
     template <typename T, void (T::*F) (T&)>
-    struct yes : yes_type
+    struct yes1 : yes_type
     {
-        yes (int = 0) {}
+        yes1 (int = 0) {}
+    };
+    
+    // for when T has static void swap(T&, T&)
+    template <typename T, void (*F) (T&, T&)>
+    struct yes2 : yes_type
+    {
+        yes2 (int = 0) {}
     };
     
     template <typename T>
-    static yes<T, &T::swap> test(T*)
+    static yes1<T, &T::swap>* test(T*)
+    {
+        return 0;
+    }
+    
+    template <typename T>
+    static yes2<T, &T::swap>* test(T*)
     {
         return 0;
     }
@@ -39,11 +53,28 @@ private:
         return 0;
     }
     
+    // for when T has void T::swap(T&)
     template <typename T>
-    static void apply(T& a, T& b, yes_type)
+    static void applyFurther(T& a, T& b, void (T::*F) (T&))
     {
-        cout << "Doing an available member swap\n";
+        cout << "T has void T::swap(T&)" << '\n';
         a.swap(b);
+    }
+    
+    // for when T has static void swap(T&, T&)
+    template <typename T>
+    static void applyFurther(T& a, T& b, void (*F)(T&, T&))
+    {
+        cout << "T has static void swap(T&, T&)" << '\n';
+        T::swap(a, b);
+    }
+    
+    // if any allowed T::swap exists, we land here
+    template <typename T>
+    static void apply(T& a, T& b, yes_type*)
+    {
+        cout << "Some T::swap exists.\n";
+        applyFurther(a, b, &T::swap);
     }
     
     template <typename T>
@@ -90,14 +121,34 @@ struct Foo
     }
 };
 
-namespace std {
+struct Bar
+{
+    int* pInt = nullptr;
+
+    Bar() : pInt(new int(42)) {}
+    Bar(int val) : pInt(new int(val)) {}
     
-    template <>
-    void swap(Foo& x, Foo& y)
+    static void swap(Bar& a, Bar& b)
     {
-        x.swap(y);
+        std::swap(a.pInt, b.pInt);
     }
-}
+    
+    auto getThis() const
+    {
+        return this;
+    }
+    
+    int getVal() const
+    {
+        return *pInt;
+    }
+    
+    friend ostream& operator<<(ostream& os, Bar const& bar)
+    {
+        cout << "this: " << bar.getThis() << ", int val = " << bar.getVal(); 
+        return os;
+    }
+};
 
 int main()
 {
@@ -112,6 +163,26 @@ int main()
     cout << "Before: foo1 = " << foo1 << ", foo2 = " << foo2 << '\n';
     smart_swap(foo1, foo2);
     cout << "After: foo1 = " << foo1 << ", foo2 = " << foo2 << '\n';
-        
+                
+    Bar bar1{1};
+    Bar bar2{2};
+    cout << "Before: bar1 = " << bar1 << ", bar2 = " << bar2 << '\n';
+    smart_swap(bar1, bar1);
+    cout << "After: bar1 = " << bar1 << ", bar2 = " << bar2 << '\n';
+
     return 0;    
 }
+
+/*
+Before: a = 1, b = 2
+Doing an ADL swap
+After: a = 2, b = 1
+Before: foo1 = this: 0x7ffef1105fc0, int val = 1, foo2 = this: 0x7ffef1105fc8, int val = 2
+Some T::swap exists.
+T has void T::swap(T&)
+After: foo1 = this: 0x7ffef1105fc0, int val = 2, foo2 = this: 0x7ffef1105fc8, int val = 1
+Before: bar1 = this: 0x7ffef1105fd0, int val = 1, bar2 = this: 0x7ffef1105fd8, int val = 2
+Some T::swap exists.
+T has static void swap(T&, T&)
+After: bar1 = this: 0x7ffef1105fd0, int val = 1, bar2 = this: 0x7ffef1105fd8, int val = 2
+*/
