@@ -68,11 +68,17 @@ int main()
 {
     cout << boolalpha << is_mutable_iterator<int>::value << '\n';
     
-    using iterator_t = vector<int>::iterator;
-    cout << boolalpha << is_mutable_iterator<iterator_t>::value << '\n';
+    using ivec_iterator_t = vector<int>::iterator;
+    cout << boolalpha << is_mutable_iterator<ivec_iterator_t>::value << '\n';
     
-    using const_iterator_t = vector<int>::const_iterator;
-    cout << boolalpha << is_mutable_iterator<const_iterator_t>::value << '\n';
+    using ivec_const_iterator_t = vector<int>::const_iterator;
+    cout << boolalpha << is_mutable_iterator<ivec_const_iterator_t>::value << '\n';
+    
+    using imap_iterator_t = map<int, int>::iterator;
+    cout << boolalpha << is_mutable_iterator<imap_iterator_t>::value << '\n';
+    
+    using imap_const_iterator_t = map<int, int>::const_iterator;
+    cout << boolalpha << is_mutable_iterator<imap_const_iterator_t>::value << '\n';
     
     return 0;
 }
@@ -81,7 +87,6 @@ int main()
 false
 true
 false
+true
+false
 */
-
-
-
