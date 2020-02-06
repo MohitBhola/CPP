@@ -156,7 +156,7 @@ Executive Summary:
 Solution
 ========
 
-Provide for a generic smart pointer class template, synchronized_ptr that:
+Provide for a generic smart pointer class template, thread_safe_ptr that:
 
 1. Creates and owns a shared resource (any fundamental / user defined / library concrete type).
 2. Associates that shared resource with a synchronization primitive and a lock type (any synchronization primitive type and any lock type, with reasonable defaults).
