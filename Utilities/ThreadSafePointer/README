@@ -1,70 +1,70 @@
-================================================
-Problem / Observation / Current state of affairs
-================================================
+=====================
+Problem / Observation
+=====================
 
 We usually associate a shared resource with a synchronization primitive, such as a std::mutex. Then, client code in different threads that needs to access that shared resource can acquire a lock on that shared resource via the associated synchronization primitive. For example:
 
 class Foo
 {
- int mSomeState;
- std::recursive_mutex mMutex;
+    int mSomeState{42}; // needs protection
+    std::recursive_mutex mMutex; // the protection
+ 
 public:
- explicit Foo(int initialState) : mSomeState(initialState) {}
- void doSomething1()
- {
-  std::lock_guard<std::recursive_mutex> lk(mMutex);
-  // blah
- }
- void doSomething2()
- {
-  std::lock_guard<std::recursive_mutex> lk(mMutex);
-  // blah
- }
+ 
+    Foo() = default;
+ 
+    void doSomething1()
+    {
+        std::lock_guard<std::recursive_mutex> aLock(mMutex);
+        // blah
+    }
+    void doSomething2()
+    {
+        std::lock_guard<std::recursive_mutex> aLock(mMutex);
+        // blah
+    }
 };
-
-// the shared resource
+ 
+// a global Foo object
 Foo gFoo{42};
-
+ 
 Thread1
 =======
 // thread safe
-gFoo->doSomething1(); 
-
+gFoo->doSomething1();
+ 
 Thread2
 =======
 // thread safe
 gFoo->doSomething2();
 
-
-We can say that Foo, as is, is thread safe, since it has a synchronization primitive (mMutex) baked into it. All member functions that need to be thread safe just need to slap a lock_guard at the very beginning.
-
+We can say that gFoo, as is, is thread safe, since it has a synchronization primitive (mMutex) baked into it. All member functions that need to access the shared state (mSomeState) in a thread safe manner just need to slap a lock_guard at the very beginning.
 Fine.
-
 But there are two issues here:
-
 1. Slapping a lock_guard at the very beginning of every member function (including new ones that would get coded in future) is both tedious and error prone.
-
 2. Even if we bear with aforementioned issue # 1, we can't have transactional semantics. That is, a sequence of operations on Foo that needs to happen atomically couldn't be guaranteed to happen atomically. IOWs, a sequence of operations on Foo that any thread should see as either done or not done but never half done could be seen as half done by any thread. For example:
 
 Thread1
 =======
 // a transaction
 // thread safe?
-gFoo->doSomething1(); 
-gFoo->doSomething2(); 
-
+gFoo->doSomething1();
+gFoo->doSomething2();
+ 
 Thread2
 =======
 // a transaction
 // thread safe?
-gFoo->doSomething1(); 
+gFoo->doSomething1();
 gFoo->doSomething2();
 
-Thread1 could get preempted just after finishing the first operation of its transaction, and Thread2 could then get scheduled, and happily start executing the first operation of its transaction, even though Thread1's transaction is still only half done. To address this issue, we would need to associate an external synchronization primitive with the shared resource:
+Thread1 could get preempted just after finishing the first operation of its transaction, and Thread2 could then get scheduled, and happily start executing the first operation of its transaction, even though Thread1's transaction is still only half done.
+
+To address this issue, we would need to associate an external synchronization primitive with the global Foo object:
 
 // the shared resource and its associated synchronization primitive
-Foo gFoo{42};
-std::recursive_mutex gFooMutex;
+Foo gFoo{42}; // needs protection
+std::recursive_mutex gFooMutex; // the protection
 
 Client code executing in different threads can now explicitly acquire a lock on this synchronization primitive and retain it during the entire transaction, and thus achieve transactional semantics:
 
@@ -72,13 +72,13 @@ Thread1
 =======
 // a thread safe transaction
 // the lock gets released at the end of the comma expression
-std::lock_guard<std::recursive_mutex>(gFooMutex), gFoo→doSomething1(), gFoo->doSomething2(); 
-
+std::lock_guard<std::recursive_mutex>(gFooMutex), gFoo→doSomething1(), gFoo->doSomething2();
+ 
 Thread2
 =======
 // a thread safe transaction
 // the lock gets released at the end of the comma expression
-std::lock_guard<std::recursive_mutex>(gFooMutex), gFoo→doSomething1(), gFoo->doSomething2(); 
+std::lock_guard<std::recursive_mutex>(gFooMutex), gFoo→doSomething1(), gFoo->doSomething2();
 
 Note that with the external synchronization primitive in place, the baked-in synchronization primitive in Foo isn't strictly necessary. Client code executing in different threads can now acquire a lock on the external synchronization primitive for singular operations as well. 
 
@@ -86,58 +86,80 @@ Thread1
 =======
 // a thread safe singular operation with explicit synchronization
 // gFoo→doSomething1() need not slap a lock_guard at its beginning
-std::lock_guard<std::recursive_mutex>(gFooMutex), gFoo->doSomething1(); 
-
+std::lock_guard<std::recursive_mutex>(gFooMutex), gFoo->doSomething1();
+ 
 Thread2
 =======
 // a thread safe singular operation with explicit synchronization
 // gFoo→doSomething2() need not slap a lock_guard at its beginning
 std::lock_guard<std::recursive_mutex>(gFooMutex), gFoo→doSomething2();
 
-Now, having to provide for explicit synchronization is a burden on the client code in different threads. But this burden is necessary to achieve transactional semantics. However, what makes it particularly worse is having to explicitly associate a different synchronization primitive with each shared resource in the application: this scheme necessitates humans to lock the right synchronization primitive for the right shared resource at the right location in code. But, to err is human:
+Now, having to provide for explicit synchronization is a burden on the client code in different threads. But as we've seen, this burden is necessary to achieve transactional semantics. However, what makes it particularly bad is having to explicitly associate a different synchronization primitive with each shared resource in the application: this scheme necessitates humans to lock the right synchronization primitive for the right shared resource at the right location in code. But, to err is human. We may lock the wrong mutex, or forget to lock any mutex at all:
 
 // another shared resource and its synchronization primitive
-Foo gFoo2{42};
-std::recursive_mutex gFoo2Mutex;
-
+Foo gFoo2{42}; // needs protection
+std::recursive_mutex gFoo2Mutex; // the protection
+ 
 Thread1
 =======
 // a singular operation with explicit synchronization
-// thread safe?
+// thread safe? NO. Access to gFoo in other threads is incorrect!
 std::lock_guard<std::recursive_mutex>(gFooMutex), gFoo→doSomething1();
-
+ 
 Thread2
 =======
 // a singular operation with explicit synchronization
-// thread safe?
-std::lock_guard<std::recursive_mutex>(gFoo2Mutex), gFoo→doSomething1(); // OOPS. Wrong mutex!
+// thread safe? NO. We lock a wrong mutex here (gFoo2Mutex instead of gFooMutex)
+std::lock_guard<std::recursive_mutex>(gFoo2Mutex), gFoo→doSomething1(); // OOPS!
+ 
+Thread3
+=======
+// a singular operation without explicit synchronization
+// thread safe? NO. We forget to lock any mutex here.
+gFoo→doSomething1(); // OOPS again!
 
-Note that in Thread1 above, we acquire a lock on the right synchronization primitive: gFooMutex is meant to protect the shared resource gFoo. But, in Thread2, we acquire a lock on the wrong synchronization primitive: gFoo2Mutex is meant to protect the shared resource gFoo2 and not gFoo! It's easy to err like this since the association between a shared resource and the corresponding synchronization primitive is loosely defined in source code by humans. Again, to err is human.
+Note that in Thread1 above, we acquire a lock on the right synchronization primitive: gFooMutex is meant to protect the shared resource gFoo. But, in Thread2, we acquire a lock on the wrong synchronization primitive: gFoo2Mutex is meant to protect the shared resource gFoo2 and not gFoo! Also, in Thread3, we forget to lock any mutex.
+
+It gets worse. Even if we lock the right mutex for the right shared resource, we risk a deadlock while trying to acquire the locks in different orders in different threads. For example, consider a transaction that involves both shared resources gFoo and gFoo2:
+
+Thread1
+=======
+// a transaction
+// thread safe? NO. We could potentially deadlock owing to the different order of locks in Thread1 and Thread2
+{
+    std::lock_guard<std::recursive_mutex> aLock(gFooMutex);
+    std::lock_guard<std::recursive_mutex> aLock2(gFoo2Mutex);
+    gFoo→doSomething1();
+    gFoo2→doSomething1();
+}
+ 
+Thread2
+=======
+// a transaction
+// thread safe? NO. We could potentially deadlock owing to the different order of locks in Thread1 and Thread2
+{
+    std::lock_guard<std::recursive_mutex> aLock2(gFoo2Mutex);
+    std::lock_guard<std::recursive_mutex> aLock(gFooMutex);
+    gFoo→doSomething1();
+    gFoo2→doSomething1();
+}
+
+It's easy to err like above since the association between a shared resource and the corresponding synchronization primitive is loosely defined in source code by humans. Again, to err is human.
 
 Executive Summary:
 
 1. A baked-in synchronization primitive relieves the client code in different threads from having to provide for explicit synchronization. It both simplifies the client code and makes it thread safe. However, it fails to provide for (much needed) transactional semantics.
-
 2. An external synchronization primitive allows for both transactional semantics and thread safe singular operations. However, it requires the client code in different threads to provide for explicit synchronization (which is a necessary evil) correctly (that is, lock the right synchronization primitive for the right shared resource at the right location in source code).
-
 3. Having both baked-in and external synchronization is, well, both undesirable and ugly.
 
 ========
-Solution 
+Solution
 ========
 
-Provide for a generic smart pointer class template, thread_safe_ptr, that:
+Provide for a generic smart pointer class template, synchronized_ptr that:
 
-
-
-1. Creates and owns a shared resource (any concrete type).
-
-2. Associates that shared resource with a synchronization primitive and a lock type (any synchronization primitive type and any lock type).
-
-3. Provides pointer semantics. That is, lets the clients access the underlying shared resource via dereferencing. Further, if the underlying shared resource is a class having data members / member functions, it allows transparent access to them via indirection.
-
-4. Provides for all operators supported by the underlying shared resource.
-
-5. Above all, provides thread safety for singular operations by acquiring a lock (implicitly, automagically) on the synchronization primitive associated with the underlying shared resource on every access by the client code in different threads, and releasing it (implicitly, automagically) at the end of such an operation.
-
-6. And last but not least, provides for transactional semantics by allowing the client code in different threads to explicitly acquire a lock (preferably via a lock_guard or something similar) on the synchronization primitive associated with the underlying shared resource. Of course, it would be the responsibility of the clients to hold on to that lock for the entire duration of the transactions.
+1. Creates and owns a shared resource (any fundamental / user defined / library concrete type).
+2. Associates that shared resource with a synchronization primitive and a lock type (any synchronization primitive type and any lock type, with reasonable defaults).
+3. Forces the client code to always lock the associated (always correct) synchronization primitive for thread safe access to an underlying shared resource via an explicit API (aptly named Lock()). This would prevent the class of bugs arising from having locked the wrong synchronization primitive or forgotten to lock any synchronization primitive while trying to access a shared resource. The lock would be managed via a RAII based proxy object. 
+4. Allows the client code to acquire locks on multiple synchronization primitives in a deadlock free manner by using the std::lock() API (available since C++11). This would prevent a potential deadlock while trying to manually lock multiple synchronization primitives in different orders in different threads in order to do a transaction that involves multiple shared resources.
+3. Provides for pointer semantics. That is, lets the clients access the underlying shared resource via dereferencing (via the proxy object). Further, if the underlying shared resource is a class having data members / member functions, it allows transparent access to them via indirection (again, via the proxy object)
