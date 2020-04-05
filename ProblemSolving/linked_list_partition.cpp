@@ -68,7 +68,7 @@ Node* partition(Node* pHead, int x)
 				q1 = pHead;
 				q2 = pHead;
 				pHead = pHead->next;
-				q2 = nullptr;
+				q2->next = nullptr;
 			}
 			else
 			{
