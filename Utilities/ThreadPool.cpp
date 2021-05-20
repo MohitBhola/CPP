@@ -14,8 +14,7 @@ class ThreadPool
 {
     class Job
     {
-        packaged_task<void(void)> task{};
-    
+   
     public:
     
         ~Job() noexcept = default;
