@@ -30,6 +30,8 @@ class ThreadPool
         
     private:
     
+        // the callable under the hood of the packaged_task shall 
+        // invoke the real callable with all required arguments
         std::packaged_task<RetType()> func;
         
     public:
@@ -112,15 +114,15 @@ public:
         typename... Args>
     future<result_of_t<F(Args...)>> enqueue_task(F&& f, Args&&... args) 
     { 
-        // we have a callable F and variadic arguments args
-        // the packaged_task template argument is <RetType()>
-        // this means that the return type of the callable under the hood of the packaged_task is RetType
-        // but that callable shall take no arguments at runtime
-        // this would be made feasible by binding the arguments to the callable F, thus producing the callable under the hood of the packaged_task
-        using return_type = result_of_t<F(Args...)>;
+        // we have a callable *F* and a variadic parameter *args*
+        // we shall create a packaged_task which shall wrap around a callable that would call F with the variadic parameter *args*
+        // that callable shall be produced via a call to bind with *F* and *args* as the arguments
+        // the packaged_task template argument is <RetType()>, where RetType is the type of the result produced
+        // by the callable F when invoked with the variadic parameter *args*
+        using RetType = result_of_t<F(Args...)>;
         
-        packaged_task<return_type()> p(move(bind(forward<F>(f), forward<Args>(args)...)));
-        future<return_type> fut = p.get_future();
+        packaged_task<RetType()> p(move(bind(forward<F>(f), forward<Args>(args)...)));
+        future<RetType> fut = p.get_future();
         
         {
             unique_lock<mutex> lk(mMutex);   
