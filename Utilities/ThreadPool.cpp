@@ -50,6 +50,8 @@ public:
 
     ThreadPool(int numThreads = std::thread::hardware_concurrency())
     {
+        cout << "hardware_concurrency = " << numThreads << '\n';
+        
         for (int i = 0; i < numThreads; ++i)
         {
             mThreadPool.emplace_back(
@@ -104,9 +106,8 @@ public:
         {
             unique_lock<mutex> lk(mMutex);   
             mTasks.emplace_back(make_shared<AnyJob<return_type>>(move(p)));
+            mConditionVariable.notify_all();
         }
-        
-        mConditionVariable.notify_all();
         
         return fut;
     }
@@ -114,7 +115,8 @@ public:
     void cancel_pending()
     {
         unique_lock<mutex> lk(mMutex);
-        mTasks.push_back(nullptr);
+        mTasks.clear();
+        mConditionVariable.notify_all();
     }
 };
 
@@ -125,9 +127,7 @@ void add(int a, int b, promise<int> p)
 
 int multiply(int a, int b)
 {
-    cout << "I was here\n";
-    return a*b;
-    
+    return a*b;   
 }
 
 int main()
