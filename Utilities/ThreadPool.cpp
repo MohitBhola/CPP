@@ -119,11 +119,6 @@ public:
     }
 };
 
-void add(int a, int b, promise<int> p)
-{
-    p.set_value(a+b);
-}
-
 int multiply(int a, int b)
 {
     return a*b;   
