@@ -35,7 +35,7 @@ public:
     }
 };
 
-class BecomeActiveObject
+class ActiveObject
 {
     double val{};
     mutex mMutex{};
@@ -43,15 +43,16 @@ class BecomeActiveObject
     deque<shared_ptr<Job>> q{};
     
     unique_ptr<thread> mRunnable{};
+    atomic<bool> mDone{};
     
 public:
 
-    BecomeActiveObject()
+    ActiveObject()
     {
         mRunnable = make_unique<thread>(
             [this]()
             {
-                while (true)
+                while (!mDone)
                 { 
                     shared_ptr<Job> pJob{};
                     {
@@ -71,14 +72,18 @@ public:
         );
     }
     
-    ~BecomeActiveObject() 
+    ~ActiveObject() 
+    {
+        sendQuitMessage();
+        mRunnable->join();
+    }
+    
+    void sendQuitMessage()
     {
         {
             unique_lock<mutex> lk(mMutex);
             q.push_front(nullptr);
         }
-        
-        mRunnable->join();
     }
         
     auto func1()
@@ -127,7 +132,7 @@ private:
 
 int main()
 {
-    BecomeActiveObject ao{};
+    ActiveObject ao{};
     ao.func1();
     ao.func2();
     
