@@ -126,7 +126,7 @@ public:
         
         {
             unique_lock<mutex> lk(mMutex);   
-            mTasks.emplace_back(make_shared<AnyJob<return_type>>(move(p)));
+            mTasks.emplace_back(make_shared<AnyJob<RetType>>(move(p)));
             mConditionVariable.notify_all();
         }
         
