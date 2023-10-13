@@ -7,19 +7,22 @@
 #include <map>
 #include <thread>
 
-using namespace std;  template <typename T, typename = std::void_t<>>
-struct disable_if_indirection : std::false_type
+template <typename T, typename = std::void_t<>>
+struct has_indirection : std::false_type
 {};
 
 template <typename T>
-struct disable_if_indirection<T, std::void_t<decltype(std::declval<T>().operator->())>> : std::true_type
+struct has_indirection<T, std::void_t<decltype(std::declval<T>().operator->())>> : std::true_type
 {};
 
-template <typename Resource, bool = disable_if_indirection<Resource>::value>
+template <typename Resource>
+using disable_for_indirection = std::enable_if_t<!has_indirection<Resource>::value>;
+
+template <typename Resource, typename = disable_for_indirection<std::decay_t<Resource>>>
 class thread_safe {
 
     // all thread_safe instantiations are friends
-    template<typename, bool>
+    template<typename, typename>
     friend class thread_safe;
     
     // the underlying
@@ -33,26 +36,14 @@ class thread_safe {
     template <typename ResourceT, typename lock_t>
     class proxy {
         
+        mutable ResourceT* pUnderlying{nullptr};
+        mutable lock_t lock{};
+        
     public:
     
         using ResourceType = ResourceT;
         
-        mutable ResourceType* pUnderlying{nullptr};
-        mutable lock_t lock{};
-
-        // when the proxy object is created, acquire a lock on the underlying explicitly as per lockStrategy
-        template <typename LockStrategy>
-        proxy(ResourceType* p, std::shared_mutex& mtx, LockStrategy lockStrategy)
-        : lock(mtx, lockStrategy) /* HERE */ {
-            
-            // when LockStrategy = std::defer_lock_t, lock is not acquired
-            // when LockStrategy = std::try_lock_t, lock is attempted but it may not get acquired
-            // when LockStrategy = std::adopt_lock_t, lock is already in place
-            // hold the pointer to the underlying only if the lock has an associated mutex and has acquired ownership of it
-            if (owns_lock()) {
-                pUnderlying = p;
-            }
-        }
+        // when the proxy object is created, acquire a lock on the underlying explicitly
         
         // for unique_lock requests, acquire an exclusive ownership of the mutex
         // if another thread is holding an exclusive lock or a shared lock on the same mutex, block execution until all such locks are released
@@ -60,9 +51,18 @@ class thread_safe {
         //
         // for shared_lock requests, acquire shared ownership of the mutex
         // if another thread is holding the mutex in exclusive ownership, block execution until shared ownership can be acquired
-        proxy(ResourceType* p, std::shared_mutex& mtx)
-        : pUnderlying(p), lock(mtx) /* HERE */ {}
+        proxy(ResourceT* p, std::shared_mutex& mtx)
+        : pUnderlying(p), lock(mtx) {
+	    // the unique/shared lock must have an associated mutex with exclusive/shared ownership of it
+            assert(owns_lock());
+        }
         
+        proxy(ResourceT* p, std::shared_mutex& mtx, std::adopt_lock_t)
+        : pUnderlying(p), lock(mtx, std::adopt_lock) {
+	    // the unique/shared lock must have an associated mutex with exclusive/shared ownership of it
+            assert(owns_lock());
+        }
+            
         // move enabled
         proxy(proxy&& rhs)
         : pUnderlying(rhs.pUnderlying), lock(std::move(rhs.lock)) {
@@ -76,12 +76,12 @@ class thread_safe {
         ~proxy() noexcept = default;
 
         // overload the indirection operator to reach out to the underlying
-        ResourceType* operator->() const {
+        ResourceT* operator->() const {
             return pUnderlying;
         }
 
         // overload the dereference operator to reach out to the underlying
-        ResourceType& operator*() const {
+        ResourceT& operator*() const {
             return *pUnderlying;
         }
         
@@ -166,22 +166,20 @@ public:
         return proxy<ResourceType, std::unique_lock<std::shared_mutex>>(ptr.get(), *mtx);
     }
     
-    template <typename LockStrategy, typename = std::enable_if_t<!std::is_same_v<std::defer_lock_t, std::decay_t<LockStrategy>>>>
-    auto unique_lock(LockStrategy lockStrategy) {
-        return proxy<ResourceType, std::unique_lock<std::shared_mutex>>(ptr.get(), *mtx, lockStrategy);
+    auto unique_lock(std::adopt_lock_t) {
+        return proxy<ResourceType, std::unique_lock<std::shared_mutex>>(ptr.get(), *mtx, std::adopt_lock);
     }
-
+    
     // a shared_lock request should only come from a const thread_safe object
     // hence this api is const
     auto shared_lock() const {
         return proxy<const ResourceType, std::shared_lock<std::shared_mutex>>(ptr.get(), *mtx);
     }
     
-    template <typename LockStrategy, typename = std::enable_if_t<!std::is_same_v<std::defer_lock_t, std::decay_t<LockStrategy>>>>
-    auto shared_lock(LockStrategy lockStrategy) const {
-        return proxy<const ResourceType, std::shared_lock<std::shared_mutex>>(ptr.get(), *mtx, lockStrategy);
+    auto shared_lock(std::adopt_lock_t) const {
+        return proxy<const ResourceType, std::shared_lock<std::shared_mutex>>(ptr.get(), *mtx, std::adopt_lock);
     }
-};  
+}; 
 
 class Base {
   
